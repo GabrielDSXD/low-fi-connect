@@ -1,25 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
 export type Participant = {
   id: string;
   nick: string;
   stream: MediaStream;
   hasVideo: boolean;
-  speaking?: boolean;
 };
 
 type Status = "idle" | "connecting" | "connected" | "error";
 
+const ROOM = "sala-unica";
+
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
-
-function signalingUrl() {
-  const fromEnv = import.meta.env['VITE_SIGNALING_URL'] as string | undefined;
-  if (fromEnv) return fromEnv;
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.hostname}:3001`;
-}
 
 type PeerState = {
   pc: RTCPeerConnection;
@@ -28,7 +24,13 @@ type PeerState = {
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
-  settingRemoteAnswer: boolean;
+};
+
+type SignalPayload = {
+  to: string;
+  from: string;
+  nick: string;
+  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
 };
 
 export function useCall() {
@@ -40,7 +42,9 @@ export function useCall() {
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
 
-  const wsRef = useRef<WebSocket | null>(null);
+  const meRef = useRef<string>("");
+  const nickRef = useRef("");
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef(new Map<string, PeerState>());
   const micStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -56,15 +60,24 @@ export function useCall() {
     );
   }, []);
 
-  const sendSignal = useCallback((to: string, data: unknown) => {
-    wsRef.current?.send(JSON.stringify({ type: "signal", to, data }));
+  const sendSignal = useCallback((to: string, data: SignalPayload["data"]) => {
+    void channelRef.current?.send({
+      type: "broadcast",
+      event: "signal",
+      payload: { to, from: meRef.current, nick: nickRef.current, data } satisfies SignalPayload,
+    });
   }, []);
 
   const createPeer = useCallback(
-    (id: string, peerNick: string, polite: boolean) => {
+    (id: string, peerNick: string) => {
       const existing = peersRef.current.get(id);
-      if (existing) return existing;
+      if (existing) {
+        if (peerNick && peerNick !== "…") existing.nick = peerNick;
+        return existing;
+      }
 
+      // Regra determinística: quem tem o id menor faz a oferta (impolite).
+      const polite = meRef.current > id ? false : true;
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       const state: PeerState = {
         pc,
@@ -73,7 +86,6 @@ export function useCall() {
         polite,
         makingOffer: false,
         ignoreOffer: false,
-        settingRemoteAnswer: false,
       };
       peersRef.current.set(id, state);
 
@@ -81,14 +93,14 @@ export function useCall() {
       for (const track of screenStreamRef.current?.getTracks() ?? []) pc.addTrack(track);
 
       pc.onicecandidate = ({ candidate }) => {
-        if (candidate) sendSignal(id, { candidate });
+        if (candidate) sendSignal(id, { candidate: candidate.toJSON() });
       };
 
       pc.onnegotiationneeded = async () => {
         try {
           state.makingOffer = true;
           await pc.setLocalDescription();
-          sendSignal(id, { description: pc.localDescription });
+          sendSignal(id, { description: pc.localDescription! });
         } catch (err) {
           console.error("negotiation error", err);
         } finally {
@@ -99,7 +111,7 @@ export function useCall() {
       pc.ontrack = ({ track }) => {
         state.stream.addTrack(track);
         sync();
-        const drop = () => {
+        track.onended = () => {
           try {
             state.stream.removeTrack(track);
           } catch {
@@ -107,14 +119,11 @@ export function useCall() {
           }
           sync();
         };
-        track.onended = drop;
         track.onmute = sync;
         track.onunmute = sync;
       };
 
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "closed") sync();
-      };
+      pc.onconnectionstatechange = () => sync();
 
       sync();
       return state;
@@ -123,28 +132,37 @@ export function useCall() {
   );
 
   const handleSignal = useCallback(
-    async (from: string, data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }) => {
-      const state = peersRef.current.get(from) ?? createPeer(from, "…", true);
+    async (payload: SignalPayload) => {
+      if (payload.to !== meRef.current || payload.from === meRef.current) return;
+      const state = createPeer(payload.from, payload.nick || "…");
       const { pc } = state;
+      const { description, candidate } = payload.data;
 
       try {
-        if (data.description) {
-          const offerCollision =
-            data.description.type === "offer" &&
-            (state.makingOffer || pc.signalingState !== "stable");
-          state.ignoreOffer = !state.polite && offerCollision;
+        if (description) {
+          const collision =
+            description.type === "offer" && (state.makingOffer || pc.signalingState !== "stable");
+          state.ignoreOffer = !state.polite && collision;
           if (state.ignoreOffer) return;
 
-          await pc.setRemoteDescription(data.description);
-          if (data.description.type === "offer") {
-            await pc.setLocalDescription();
-            sendSignal(from, { description: pc.localDescription });
+          if (collision && state.polite) {
+            await Promise.all([
+              pc.setLocalDescription({ type: "rollback" } as RTCSessionDescriptionInit),
+              pc.setRemoteDescription(description),
+            ]);
+          } else {
+            await pc.setRemoteDescription(description);
           }
-        } else if (data.candidate) {
+
+          if (description.type === "offer") {
+            await pc.setLocalDescription();
+            sendSignal(payload.from, { description: pc.localDescription! });
+          }
+        } else if (candidate) {
           try {
-            await pc.addIceCandidate(data.candidate);
+            await pc.addIceCandidate(candidate);
           } catch (err) {
-            if (!state.ignoreOffer) throw err;
+            if (!state.ignoreOffer) console.warn("ice error", err);
           }
         }
       } catch (err) {
@@ -161,8 +179,8 @@ export function useCall() {
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     screenStreamRef.current = null;
-    wsRef.current?.close();
-    wsRef.current = null;
+    if (channelRef.current) void supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
     setParticipants([]);
     setLocalScreen(null);
     setSharing(false);
@@ -175,6 +193,8 @@ export function useCall() {
       setStatus("connecting");
       setError(null);
       setNick(clean);
+      nickRef.current = clean;
+      meRef.current = crypto.randomUUID();
 
       try {
         micStreamRef.current = await navigator.mediaDevices.getUserMedia({
@@ -186,39 +206,42 @@ export function useCall() {
         setMicOn(false);
       }
 
-      const ws = new WebSocket(signalingUrl());
-      wsRef.current = ws;
+      const channel = supabase.channel(`call:${ROOM}`, {
+        config: { presence: { key: meRef.current }, broadcast: { self: false } },
+      });
+      channelRef.current = channel;
 
-      ws.onopen = () => ws.send(JSON.stringify({ type: "join", nick: clean }));
+      channel.on("broadcast", { event: "signal" }, ({ payload }) => {
+        void handleSignal(payload as SignalPayload);
+      });
 
-      ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data as string);
-        if (msg.type === "welcome") {
-          setStatus("connected");
-          // Quem chega inicia a negociação com quem já estava (impolite).
-          for (const peer of msg.peers as { id: string; nick: string }[]) {
-            createPeer(peer.id, peer.nick, false);
-          }
-        } else if (msg.type === "peer-joined") {
-          createPeer(msg.peer.id, msg.peer.nick, true);
-        } else if (msg.type === "peer-left") {
-          const state = peersRef.current.get(msg.id);
-          state?.pc.close();
-          peersRef.current.delete(msg.id);
-          sync();
-        } else if (msg.type === "signal") {
-          await handleSignal(msg.from, msg.data);
+      channel.on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<{ id: string; nick: string }>();
+        const present = new Map<string, string>();
+        for (const [, entries] of Object.entries(state)) {
+          for (const entry of entries) present.set(entry.id, entry.nick);
         }
-      };
+        present.delete(meRef.current);
 
-      ws.onerror = () => {
-        setError("Não foi possível falar com o servidor de sinalização.");
-        setStatus("error");
-      };
+        for (const [id, peerNick] of present) createPeer(id, peerNick);
+        for (const id of [...peersRef.current.keys()]) {
+          if (!present.has(id)) {
+            peersRef.current.get(id)?.pc.close();
+            peersRef.current.delete(id);
+          }
+        }
+        sync();
+      });
 
-      ws.onclose = () => {
-        setStatus((s) => (s === "error" ? s : "idle"));
-      };
+      channel.subscribe(async (state) => {
+        if (state === "SUBSCRIBED") {
+          setStatus("connected");
+          await channel.track({ id: meRef.current, nick: clean });
+        } else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") {
+          setError("Não foi possível conectar à sala. Tente recarregar a página.");
+          setStatus("error");
+        }
+      });
     },
     [createPeer, handleSignal, sync],
   );
@@ -239,14 +262,13 @@ export function useCall() {
   const stopShare = useCallback(() => {
     const screen = screenStreamRef.current;
     if (!screen) return;
+    const tracks = screen.getTracks();
     for (const [, p] of peersRef.current) {
       for (const sender of p.pc.getSenders()) {
-        if (sender.track && screen.getTracks().includes(sender.track)) {
-          p.pc.removeTrack(sender);
-        }
+        if (sender.track && tracks.includes(sender.track)) p.pc.removeTrack(sender);
       }
     }
-    screen.getTracks().forEach((t) => t.stop());
+    tracks.forEach((t) => t.stop());
     screenStreamRef.current = null;
     setLocalScreen(null);
     setSharing(false);

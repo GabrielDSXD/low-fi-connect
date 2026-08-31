@@ -47,7 +47,7 @@ export function StreamTile({ stream, nick, hasVideo, muted, label }: Props) {
         </span>
       </div>
       {/* Áudio remoto sempre reproduzido, mesmo sem vídeo */}
-      {!hasVideo && stream ? <HiddenAudio stream={stream} muted={muted} /> : null}
+      {!hasVideo && stream ? <HiddenAudio stream={stream} muted={muted === true} /> : null}
     </div>
   );
 }

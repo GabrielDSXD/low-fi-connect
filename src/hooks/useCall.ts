@@ -15,7 +15,7 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 
 function signalingUrl() {
-  const fromEnv = import.meta.env.VITE_SIGNALING_URL as string | undefined;
+  const fromEnv = import.meta.env['VITE_SIGNALING_URL'] as string | undefined;
   if (fromEnv) return fromEnv;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.hostname}:3001`;
@@ -231,7 +231,7 @@ export function useCall() {
   const toggleMic = useCallback(() => {
     const tracks = micStreamRef.current?.getAudioTracks() ?? [];
     if (!tracks.length) return;
-    const next = !tracks[0].enabled;
+    const next = !tracks[0]?.enabled;
     tracks.forEach((t) => (t.enabled = next));
     setMicOn(next);
   }, []);
@@ -264,7 +264,7 @@ export function useCall() {
       for (const [, p] of peersRef.current) {
         for (const track of screen.getTracks()) p.pc.addTrack(track);
       }
-      screen.getVideoTracks()[0].addEventListener("ended", () => stopShare());
+      screen.getVideoTracks()[0]?.addEventListener("ended", () => stopShare());
     } catch {
       /* usuário cancelou */
     }

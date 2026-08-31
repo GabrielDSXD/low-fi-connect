@@ -97,7 +97,6 @@ export function useCall() {
       };
 
       pc.onnegotiationneeded = async () => {
-        if (state.polite) return; // só o lado impolite inicia
         try {
           state.makingOffer = true;
           await pc.setLocalDescription();

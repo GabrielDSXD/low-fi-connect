@@ -1,29 +1,32 @@
-# Welcome to your Lovable project
+# Call simples (nickname + compartilhamento de tela)
 
-This project was built with [Lovable](https://lovable.dev).
+Sistema leve para você e seus amigos entrarem numa **única sala**, só informando um
+nickname. Cada pessoa pode compartilhar a própria tela e assistir a tela dos outros.
+O áudio/vídeo é P2P (WebRTC) — o servidor só faz sinalização.
 
-## Build with Lovable
+## Estrutura
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+- `backend/` — servidor WebSocket de sinalização (Node, sem dependências além de `ws`).
+- `frontend/` — o app web (React + TanStack Start) desta pasta: `src/`, `vite.config.ts`, etc.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+## Rodando na sua máquina
 
-## Development
+```bash
+# terminal 1 — sinalização
+cd backend && npm install && npm start      # ws://localhost:3001
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+# terminal 2 — interface
+npm install && npm run dev                  # http://localhost:8080
 ```
 
-## Built with
+Para amigos na mesma rede, defina no `.env` do frontend:
 
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
+```
+VITE_SIGNALING_URL=ws://SEU_IP_LOCAL:3001
+```
+
+E acesse `http://SEU_IP_LOCAL:8080`.
+
+> Importante: navegadores só permitem microfone e compartilhamento de tela em
+> `localhost` ou em **HTTPS**. Para acesso fora do localhost, use um túnel
+> (Tailscale, ngrok, Cloudflare Tunnel) ou um proxy HTTPS.

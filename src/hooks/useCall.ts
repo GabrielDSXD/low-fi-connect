@@ -22,7 +22,9 @@ const ICE_SERVERS: RTCIceServer[] = [
 type PeerState = {
   pc: RTCPeerConnection;
   nick: string;
-  stream: MediaStream;
+  micStream: MediaStream;
+  screenStream: MediaStream;
+
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;

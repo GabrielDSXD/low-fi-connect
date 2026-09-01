@@ -9,6 +9,15 @@ export type Participant = {
   screenStream: MediaStream;
   hasVideo: boolean;
 };
+export type ChatMessage = {
+  id: string;
+  from: string;
+  nick: string;
+  text: string;
+  at: number;
+  mine: boolean;
+};
+
 
 
 type Status = "idle" | "connecting" | "connected" | "error";

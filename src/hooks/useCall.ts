@@ -339,6 +339,20 @@ export function useCall() {
     else void startShare();
   }, [sharing, startShare, stopShare]);
 
+  const sendMessage = useCallback((text: string) => {
+    const clean = text.trim().slice(0, 500);
+    if (!clean || !channelRef.current) return;
+    const msg: Omit<ChatMessage, "mine"> = {
+      id: crypto.randomUUID(),
+      from: meRef.current,
+      nick: nickRef.current,
+      text: clean,
+      at: Date.now(),
+    };
+    setMessages((prev) => [...prev, { ...msg, mine: true }]);
+    void channelRef.current.send({ type: "broadcast", event: "chat", payload: msg });
+  }, []);
+
   useEffect(() => cleanup, [cleanup]);
 
   return {
@@ -349,9 +363,11 @@ export function useCall() {
     micOn,
     sharing,
     localScreen,
+    messages,
     join,
     leave,
     toggleMic,
     toggleShare,
+    sendMessage,
   };
 }

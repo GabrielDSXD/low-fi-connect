@@ -9,6 +9,15 @@ export type Participant = {
   screenStream: MediaStream;
   hasVideo: boolean;
 };
+export type ChatMessage = {
+  id: string;
+  from: string;
+  nick: string;
+  text: string;
+  at: number;
+  mine: boolean;
+};
+
 
 
 type Status = "idle" | "connecting" | "connected" | "error";
@@ -47,6 +56,7 @@ export function useCall() {
   const [micOn, setMicOn] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const meRef = useRef<string>("");
   const nickRef = useRef("");
@@ -209,6 +219,7 @@ export function useCall() {
     setParticipants([]);
     setLocalScreen(null);
     setSharing(false);
+    setMessages([]);
   }, []);
 
   const join = useCallback(
@@ -238,6 +249,12 @@ export function useCall() {
 
       channel.on("broadcast", { event: "signal" }, ({ payload }) => {
         void handleSignal(payload as SignalPayload);
+      });
+
+      channel.on("broadcast", { event: "chat" }, ({ payload }) => {
+        const msg = payload as Omit<ChatMessage, "mine">;
+        if (!msg?.text) return;
+        setMessages((prev) => [...prev, { ...msg, mine: msg.from === meRef.current }]);
       });
 
       channel.on("presence", { event: "sync" }, () => {
@@ -323,6 +340,20 @@ export function useCall() {
     else void startShare();
   }, [sharing, startShare, stopShare]);
 
+  const sendMessage = useCallback((text: string) => {
+    const clean = text.trim().slice(0, 500);
+    if (!clean || !channelRef.current) return;
+    const msg: Omit<ChatMessage, "mine"> = {
+      id: crypto.randomUUID(),
+      from: meRef.current,
+      nick: nickRef.current,
+      text: clean,
+      at: Date.now(),
+    };
+    setMessages((prev) => [...prev, { ...msg, mine: true }]);
+    void channelRef.current.send({ type: "broadcast", event: "chat", payload: msg });
+  }, []);
+
   useEffect(() => cleanup, [cleanup]);
 
   return {
@@ -333,9 +364,11 @@ export function useCall() {
     micOn,
     sharing,
     localScreen,
+    messages,
     join,
     leave,
     toggleMic,
     toggleShare,
+    sendMessage,
   };
 }

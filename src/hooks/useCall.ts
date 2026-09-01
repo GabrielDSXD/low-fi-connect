@@ -24,6 +24,8 @@ type PeerState = {
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
+  videoSender: RTCRtpSender | null;
+  screenAudioSender: RTCRtpSender | null;
 };
 
 type SignalPayload = {
@@ -86,11 +88,22 @@ export function useCall() {
         polite,
         makingOffer: false,
         ignoreOffer: false,
+        videoSender: null,
+        screenAudioSender: null,
       };
       peersRef.current.set(id, state);
 
-      for (const track of micStreamRef.current?.getTracks() ?? []) pc.addTrack(track);
-      for (const track of screenStreamRef.current?.getTracks() ?? []) pc.addTrack(track);
+      // Transceivers fixos: mic, tela (vídeo) e áudio da tela.
+      // Assim compartilhar/parar é só replaceTrack, sem renegociação frágil.
+      const micTrack = micStreamRef.current?.getAudioTracks()[0] ?? null;
+      pc.addTransceiver(micTrack ?? "audio", { direction: "sendrecv" });
+      const screen = screenStreamRef.current;
+      state.videoSender = pc.addTransceiver(screen?.getVideoTracks()[0] ?? "video", {
+        direction: "sendrecv",
+      }).sender;
+      state.screenAudioSender = pc.addTransceiver(screen?.getAudioTracks()[0] ?? "audio", {
+        direction: "sendrecv",
+      }).sender;
 
       pc.onicecandidate = ({ candidate }) => {
         if (candidate) sendSignal(id, { candidate: candidate.toJSON() });
@@ -262,13 +275,11 @@ export function useCall() {
   const stopShare = useCallback(() => {
     const screen = screenStreamRef.current;
     if (!screen) return;
-    const tracks = screen.getTracks();
     for (const [, p] of peersRef.current) {
-      for (const sender of p.pc.getSenders()) {
-        if (sender.track && tracks.includes(sender.track)) p.pc.removeTrack(sender);
-      }
+      void p.videoSender?.replaceTrack(null);
+      void p.screenAudioSender?.replaceTrack(null);
     }
-    tracks.forEach((t) => t.stop());
+    screen.getTracks().forEach((t) => t.stop());
     screenStreamRef.current = null;
     setLocalScreen(null);
     setSharing(false);
@@ -283,10 +294,13 @@ export function useCall() {
       screenStreamRef.current = screen;
       setLocalScreen(screen);
       setSharing(true);
+      const video = screen.getVideoTracks()[0] ?? null;
+      const audio = screen.getAudioTracks()[0] ?? null;
       for (const [, p] of peersRef.current) {
-        for (const track of screen.getTracks()) p.pc.addTrack(track);
+        if (video) await p.videoSender?.replaceTrack(video);
+        if (audio) await p.screenAudioSender?.replaceTrack(audio);
       }
-      screen.getVideoTracks()[0]?.addEventListener("ended", () => stopShare());
+      video?.addEventListener("ended", () => stopShare());
     } catch {
       /* usuário cancelou */
     }

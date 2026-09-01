@@ -96,15 +96,23 @@ function Index() {
 
       <section className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <StreamTile
-          stream={call.localScreen}
+          screenStream={call.localScreen}
           nick={call.nick}
           hasVideo={!!call.localScreen}
-          muted
+          isLocal
+          muted={!call.micOn}
           label="você"
         />
         {call.participants.map((p) => (
-          <StreamTile key={p.id} stream={p.stream} nick={p.nick} hasVideo={p.hasVideo} />
+          <StreamTile
+            key={p.id}
+            screenStream={p.screenStream}
+            micStream={p.micStream}
+            nick={p.nick}
+            hasVideo={p.hasVideo}
+          />
         ))}
+
       </section>
 
       <footer className="sticky bottom-0 flex items-center justify-center gap-3 border-t border-border bg-card/80 px-5 py-4 backdrop-blur">

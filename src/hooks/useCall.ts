@@ -90,7 +90,9 @@ export function useCall() {
       const state: PeerState = {
         pc,
         nick: peerNick,
-        stream: new MediaStream(),
+        micStream: new MediaStream(),
+        screenStream: new MediaStream(),
+
         polite,
         makingOffer: false,
         ignoreOffer: false,

@@ -109,7 +109,7 @@ export function StreamTile({
             <input
               type="range"
               min={0}
-              max={1.5}
+              max={1}
               step={0.05}
               value={micVol}
               onChange={(e) => setMicVol(Number(e.target.value))}
@@ -126,7 +126,7 @@ export function StreamTile({
             <input
               type="range"
               min={0}
-              max={1.5}
+              max={1}
               step={0.05}
               value={screenVol}
               onChange={(e) => setScreenVol(Number(e.target.value))}

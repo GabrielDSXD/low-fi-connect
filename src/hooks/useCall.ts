@@ -250,6 +250,12 @@ export function useCall() {
         void handleSignal(payload as SignalPayload);
       });
 
+      channel.on("broadcast", { event: "chat" }, ({ payload }) => {
+        const msg = payload as Omit<ChatMessage, "mine">;
+        if (!msg?.text) return;
+        setMessages((prev) => [...prev, { ...msg, mine: msg.from === meRef.current }]);
+      });
+
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{ id: string; nick: string }>();
         const present = new Map<string, string>();

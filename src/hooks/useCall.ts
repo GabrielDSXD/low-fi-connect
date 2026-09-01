@@ -219,6 +219,7 @@ export function useCall() {
     setParticipants([]);
     setLocalScreen(null);
     setSharing(false);
+    setMessages([]);
   }, []);
 
   const join = useCallback(

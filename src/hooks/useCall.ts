@@ -60,8 +60,10 @@ export function useCall() {
       [...peersRef.current.entries()].map(([id, p]) => ({
         id,
         nick: p.nick,
-        stream: p.stream,
-        hasVideo: p.stream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
+        micStream: p.micStream,
+        screenStream: p.screenStream,
+        hasVideo: p.screenStream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
+
       })),
     );
   }, []);

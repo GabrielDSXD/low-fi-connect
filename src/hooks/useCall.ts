@@ -129,12 +129,15 @@ export function useCall() {
         }
       };
 
-      pc.ontrack = ({ track }) => {
-        state.stream.addTrack(track);
+      pc.ontrack = ({ track, transceiver }) => {
+        // Ordem fixa dos transceivers: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela.
+        const index = pc.getTransceivers().indexOf(transceiver);
+        const target = index === 0 ? state.micStream : state.screenStream;
+        target.addTrack(track);
         sync();
         track.onended = () => {
           try {
-            state.stream.removeTrack(track);
+            target.removeTrack(track);
           } catch {
             /* noop */
           }
@@ -143,6 +146,7 @@ export function useCall() {
         track.onmute = sync;
         track.onunmute = sync;
       };
+
 
       pc.onconnectionstatechange = () => sync();
 

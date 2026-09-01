@@ -1,31 +1,58 @@
-import { useEffect, useRef } from "react";
-import { MicOff, MonitorOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor } from "lucide-react";
 
 type Props = {
-  stream: MediaStream | null;
+  /** Stream com o vídeo (e áudio) do compartilhamento de tela */
+  screenStream: MediaStream | null;
+  /** Stream com o microfone do participante (nulo para você mesmo) */
+  micStream?: MediaStream | null;
   nick: string;
   hasVideo: boolean;
+  /** Tile local: nunca reproduz o próprio áudio */
+  isLocal?: boolean;
   muted?: boolean;
   label?: string;
 };
 
-export function StreamTile({ stream, nick, hasVideo, muted, label }: Props) {
+export function StreamTile({
+  screenStream,
+  micStream,
+  nick,
+  hasVideo,
+  isLocal,
+  muted,
+  label,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [micVol, setMicVol] = useState(1);
+  const [screenVol, setScreenVol] = useState(1);
+  const [showControls, setShowControls] = useState(false);
 
   useEffect(() => {
     const el = videoRef.current;
-    if (el && el.srcObject !== stream) el.srcObject = stream;
-  }, [stream, hasVideo]);
+    if (el && el.srcObject !== screenStream) el.srcObject = screenStream;
+  }, [screenStream, hasVideo]);
+
+  const goFullscreen = () => {
+    const el = hasVideo ? videoRef.current : containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void el.requestFullscreen?.();
+  };
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]">
+    <div
+      ref={containerRef}
+      className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]"
+    >
       <div className="aspect-video w-full bg-muted/40">
         {hasVideo ? (
           <video
             ref={videoRef}
             autoPlay
             playsInline
-            muted={muted}
+            muted
             className="h-full w-full object-contain"
           />
         ) : (
@@ -39,6 +66,76 @@ export function StreamTile({ stream, nick, hasVideo, muted, label }: Props) {
           </div>
         )}
       </div>
+
+      {/* Ações */}
+      <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+        {!isLocal ? (
+          <button
+            type="button"
+            onClick={() => setShowControls((v) => !v)}
+            title="Volume"
+            aria-label="Ajustar volume deste participante"
+            className="rounded-lg border border-border bg-card/90 p-2 text-foreground backdrop-blur transition hover:opacity-80"
+          >
+            {micVol === 0 && screenVol === 0 ? (
+              <VolumeX className="size-4" />
+            ) : (
+              <Volume2 className="size-4" />
+            )}
+          </button>
+        ) : null}
+        {hasVideo ? (
+          <button
+            type="button"
+            onClick={goFullscreen}
+            title="Tela cheia"
+            aria-label="Assistir em tela cheia"
+            className="rounded-lg border border-border bg-card/90 p-2 text-foreground backdrop-blur transition hover:opacity-80"
+          >
+            <Maximize2 className="size-4" />
+          </button>
+        ) : null}
+      </div>
+
+      {!isLocal && showControls ? (
+        <div className="absolute right-2 top-14 w-56 space-y-3 rounded-xl border border-border bg-card/95 p-3 backdrop-blur">
+          <label className="block space-y-1.5">
+            <span className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Volume2 className="size-3.5" /> voz
+              </span>
+              <span>{Math.round(micVol * 100)}%</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={micVol}
+              onChange={(e) => setMicVol(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Monitor className="size-3.5" /> áudio da tela
+              </span>
+              <span>{Math.round(screenVol * 100)}%</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={screenVol}
+              onChange={(e) => setScreenVol(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </label>
+        </div>
+      ) : null}
+
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-background/90 to-transparent px-3 py-2">
         <span className="truncate text-sm font-medium text-foreground">{nick}</span>
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -46,17 +143,27 @@ export function StreamTile({ stream, nick, hasVideo, muted, label }: Props) {
           {muted ? <MicOff className="size-3.5" /> : null}
         </span>
       </div>
-      {/* Áudio remoto sempre reproduzido, mesmo sem vídeo */}
-      {!hasVideo && stream ? <HiddenAudio stream={stream} muted={muted === true} /> : null}
+
+      {/* Áudio remoto: voz e áudio da tela com volumes independentes */}
+      {!isLocal ? (
+        <>
+          <RemoteAudio stream={micStream ?? null} volume={micVol} />
+          <RemoteAudio stream={screenStream} volume={screenVol} />
+        </>
+      ) : null}
     </div>
   );
 }
 
-function HiddenAudio({ stream, muted }: { stream: MediaStream; muted?: boolean }) {
+function RemoteAudio({ stream, volume }: { stream: MediaStream | null; volume: number }) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (el && el.srcObject !== stream) el.srcObject = stream;
   }, [stream]);
-  return <audio ref={ref} autoPlay muted={muted} className="hidden" />;
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.volume = Math.min(1, volume);
+  }, [volume]);
+  return <audio ref={ref} autoPlay className="hidden" />;
 }

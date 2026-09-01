@@ -5,9 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 export type Participant = {
   id: string;
   nick: string;
-  stream: MediaStream;
+  micStream: MediaStream;
+  screenStream: MediaStream;
   hasVideo: boolean;
 };
+
 
 type Status = "idle" | "connecting" | "connected" | "error";
 
@@ -20,7 +22,9 @@ const ICE_SERVERS: RTCIceServer[] = [
 type PeerState = {
   pc: RTCPeerConnection;
   nick: string;
-  stream: MediaStream;
+  micStream: MediaStream;
+  screenStream: MediaStream;
+
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
@@ -56,8 +60,10 @@ export function useCall() {
       [...peersRef.current.entries()].map(([id, p]) => ({
         id,
         nick: p.nick,
-        stream: p.stream,
-        hasVideo: p.stream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
+        micStream: p.micStream,
+        screenStream: p.screenStream,
+        hasVideo: p.screenStream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
+
       })),
     );
   }, []);
@@ -84,7 +90,9 @@ export function useCall() {
       const state: PeerState = {
         pc,
         nick: peerNick,
-        stream: new MediaStream(),
+        micStream: new MediaStream(),
+        screenStream: new MediaStream(),
+
         polite,
         makingOffer: false,
         ignoreOffer: false,
@@ -121,12 +129,15 @@ export function useCall() {
         }
       };
 
-      pc.ontrack = ({ track }) => {
-        state.stream.addTrack(track);
+      pc.ontrack = ({ track, transceiver }) => {
+        // Ordem fixa dos transceivers: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela.
+        const index = pc.getTransceivers().indexOf(transceiver);
+        const target = index === 0 ? state.micStream : state.screenStream;
+        target.addTrack(track);
         sync();
         track.onended = () => {
           try {
-            state.stream.removeTrack(track);
+            target.removeTrack(track);
           } catch {
             /* noop */
           }
@@ -135,6 +146,7 @@ export function useCall() {
         track.onmute = sync;
         track.onunmute = sync;
       };
+
 
       pc.onconnectionstatechange = () => sync();
 

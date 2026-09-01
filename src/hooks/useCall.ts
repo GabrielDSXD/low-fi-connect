@@ -5,9 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 export type Participant = {
   id: string;
   nick: string;
-  stream: MediaStream;
+  micStream: MediaStream;
+  screenStream: MediaStream;
   hasVideo: boolean;
 };
+
 
 type Status = "idle" | "connecting" | "connected" | "error";
 

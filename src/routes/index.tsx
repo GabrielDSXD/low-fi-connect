@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, Users, Radio } from "lucide-react";
 import { useCall } from "@/hooks/useCall";
 import { StreamTile } from "@/components/StreamTile";
+import { ChatPanel } from "@/components/ChatPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -114,6 +115,8 @@ function Index() {
         ))}
 
       </section>
+
+      <ChatPanel messages={call.messages} onSend={call.sendMessage} />
 
       <footer className="sticky bottom-0 flex items-center justify-center gap-3 border-t border-border bg-card/80 px-5 py-4 backdrop-blur">
         <button

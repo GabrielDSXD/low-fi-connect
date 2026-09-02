@@ -116,6 +116,8 @@ function Index() {
 
       </section>
 
+      <ChatPanel messages={call.messages} onSend={call.sendMessage} />
+
       <footer className="sticky bottom-0 flex items-center justify-center gap-3 border-t border-border bg-card/80 px-5 py-4 backdrop-blur">
         <button
           onClick={call.toggleMic}

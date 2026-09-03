@@ -253,7 +253,10 @@ export function useCall() {
   );
 
   const cleanup = useCallback(() => {
-    for (const [, p] of peersRef.current) p.pc.close();
+    for (const [, p] of peersRef.current) {
+      if (p.recoverTimer) clearTimeout(p.recoverTimer);
+      p.pc.close();
+    }
     peersRef.current.clear();
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());

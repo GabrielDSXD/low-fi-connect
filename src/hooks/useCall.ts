@@ -71,14 +71,20 @@ export function useCall() {
 
   const sync = useCallback(() => {
     setParticipants(
-      [...peersRef.current.entries()].map(([id, p]) => ({
-        id,
-        nick: p.nick,
-        micStream: p.micStream,
-        screenStream: p.screenStream,
-        hasVideo: p.screenStream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
-
-      })),
+      [...peersRef.current.entries()].map(([id, p]) => {
+        const video = p.screenStream.getVideoTracks().filter((t) => t.readyState === "live");
+        return {
+          id,
+          nick: p.nick,
+          micStream: p.micStream,
+          screenStream: p.screenStream,
+          // Não derruba o vídeo por um "mute" momentâneo da faixa: isso apagava
+          // a transmissão de vez a cada oscilação de rede.
+          hasVideo: video.length > 0,
+          videoStalled: video.some((t) => t.muted),
+          connection: p.pc.connectionState,
+        };
+      }),
     );
   }, []);
 

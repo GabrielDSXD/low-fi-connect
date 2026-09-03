@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor } from "lucide-react";
+import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor, Loader2 } from "lucide-react";
 
 type Props = {
   /** Stream com o vídeo (e áudio) do compartilhamento de tela */
@@ -8,6 +8,8 @@ type Props = {
   micStream?: MediaStream | null;
   nick: string;
   hasVideo: boolean;
+  /** Vídeo existe mas está sem receber dados (rede instável) */
+  videoStalled?: boolean;
   /** Tile local: nunca reproduz o próprio áudio */
   isLocal?: boolean;
   muted?: boolean;
@@ -19,6 +21,7 @@ export function StreamTile({
   micStream,
   nick,
   hasVideo,
+  videoStalled,
   isLocal,
   muted,
   label,
@@ -31,7 +34,18 @@ export function StreamTile({
 
   useEffect(() => {
     const el = videoRef.current;
-    if (el && el.srcObject !== screenStream) el.srcObject = screenStream;
+    if (!el) return;
+    if (el.srcObject !== screenStream) el.srcObject = screenStream;
+    // Depois de uma oscilação de rede o elemento pode ficar pausado e nunca
+    // voltar sozinho — reforça o play.
+    const resume = () => void el.play().catch(() => {});
+    resume();
+    el.addEventListener("pause", resume);
+    el.addEventListener("stalled", resume);
+    return () => {
+      el.removeEventListener("pause", resume);
+      el.removeEventListener("stalled", resume);
+    };
   }, [screenStream, hasVideo]);
 
   const goFullscreen = () => {
@@ -40,6 +54,7 @@ export function StreamTile({
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
   };
+
 
   return (
     <div

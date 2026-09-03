@@ -8,6 +8,9 @@ export type Participant = {
   micStream: MediaStream;
   screenStream: MediaStream;
   hasVideo: boolean;
+  /** Faixa de vídeo existe, mas está sem dados chegando (rede instável) */
+  videoStalled: boolean;
+  connection: RTCPeerConnectionState;
 };
 export type ChatMessage = {
   id: string;
@@ -39,6 +42,7 @@ type PeerState = {
   ignoreOffer: boolean;
   videoSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
+  recoverTimer: ReturnType<typeof setTimeout> | null;
 };
 
 type SignalPayload = {

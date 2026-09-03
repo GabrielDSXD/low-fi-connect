@@ -61,7 +61,7 @@ export function StreamTile({
       ref={containerRef}
       className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]"
     >
-      <div className="aspect-video w-full bg-muted/40">
+      <div className="relative aspect-video w-full bg-muted/40">
         {hasVideo ? (
           <video
             ref={videoRef}
@@ -80,7 +80,13 @@ export function StreamTile({
             </span>
           </div>
         )}
+        {hasVideo && videoStalled ? (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-xs text-muted-foreground backdrop-blur-sm">
+            <Loader2 className="size-4 animate-spin" /> reconectando a transmissão…
+          </div>
+        ) : null}
       </div>
+
 
       {/* Ações */}
       <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">

@@ -64,6 +64,8 @@ export function useCall() {
 
   const meRef = useRef<string>("");
   const nickRef = useRef("");
+  const statusRef = useRef<Status>("idle");
+  statusRef.current = status;
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef(new Map<string, PeerState>());
   const micStreamRef = useRef<MediaStream | null>(null);

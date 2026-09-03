@@ -118,6 +118,7 @@ export function useCall() {
         ignoreOffer: false,
         videoSender: null,
         screenAudioSender: null,
+        recoverTimer: null,
       };
       peersRef.current.set(id, state);
 
@@ -153,6 +154,11 @@ export function useCall() {
         // Ordem fixa dos transceivers: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela.
         const index = pc.getTransceivers().indexOf(transceiver);
         const target = index === 0 ? state.micStream : state.screenStream;
+        // Após um ICE restart chega uma faixa nova; descarta as antigas mortas
+        // para não acumular faixas e travar o <video>.
+        for (const old of target.getTracks()) {
+          if (old.kind === track.kind && old.readyState !== "live") target.removeTrack(old);
+        }
         target.addTrack(track);
         sync();
         track.onended = () => {
@@ -167,8 +173,37 @@ export function useCall() {
         track.onunmute = sync;
       };
 
+      // Recuperação: quando o caminho P2P cai, o vídeo simplesmente congela.
+      // Quem faz a oferta (impolite) reinicia o ICE; o outro lado só responde.
+      const scheduleRecovery = (delay: number) => {
+        if (state.recoverTimer) return;
+        state.recoverTimer = setTimeout(() => {
+          state.recoverTimer = null;
+          const bad = pc.connectionState === "disconnected" || pc.connectionState === "failed";
+          if (!bad || pc.signalingState === "closed") return;
+          console.warn(`peer ${id}: conexão ${pc.connectionState}, reiniciando ICE`);
+          if (!state.polite) {
+            try {
+              pc.restartIce();
+            } catch (err) {
+              console.error("restartIce error", err);
+            }
+          }
+          scheduleRecovery(6_000);
+        }, delay);
+      };
 
-      pc.onconnectionstatechange = () => sync();
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        if (s === "disconnected") scheduleRecovery(3_000);
+        else if (s === "failed") scheduleRecovery(0);
+        else if (s === "connected" && state.recoverTimer) {
+          clearTimeout(state.recoverTimer);
+          state.recoverTimer = null;
+        }
+        sync();
+      };
+
 
       sync();
       return state;

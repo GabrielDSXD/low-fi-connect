@@ -314,10 +314,16 @@ export function useCall() {
         present.delete(meRef.current);
 
         for (const [id, peerNick] of present) createPeer(id, peerNick);
-        for (const id of [...peersRef.current.keys()]) {
-          if (!present.has(id)) {
-            peersRef.current.get(id)?.pc.close();
-            peersRef.current.delete(id);
+        // Presence vazio geralmente é uma oscilação do canal; derrubar todos os
+        // peers nesse momento matava a transmissão em andamento sem motivo.
+        if (present.size > 0) {
+          for (const id of [...peersRef.current.keys()]) {
+            if (!present.has(id)) {
+              const peer = peersRef.current.get(id);
+              if (peer?.recoverTimer) clearTimeout(peer.recoverTimer);
+              peer?.pc.close();
+              peersRef.current.delete(id);
+            }
           }
         }
         sync();
@@ -326,10 +332,18 @@ export function useCall() {
       channel.subscribe(async (state) => {
         if (state === "SUBSCRIBED") {
           setStatus("connected");
+          setError(null);
           await channel.track({ id: meRef.current, nick: clean });
         } else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") {
-          setError("Não foi possível conectar à sala. Tente recarregar a página.");
-          setStatus("error");
+          console.warn(`canal de sinalização: ${state}`);
+          // Já estava na call: o cliente reconecta sozinho e as conexões P2P
+          // continuam vivas — não derruba a chamada por isso.
+          if (statusRef.current === "connected") {
+            setError("Sinalização instável, reconectando… (a call continua)");
+          } else {
+            setError("Não foi possível conectar à sala. Tente recarregar a página.");
+            setStatus("error");
+          }
         }
       });
     },

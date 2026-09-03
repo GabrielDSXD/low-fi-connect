@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor } from "lucide-react";
+import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor, Loader2 } from "lucide-react";
 
 type Props = {
   /** Stream com o vídeo (e áudio) do compartilhamento de tela */
@@ -8,6 +8,8 @@ type Props = {
   micStream?: MediaStream | null;
   nick: string;
   hasVideo: boolean;
+  /** Vídeo existe mas está sem receber dados (rede instável) */
+  videoStalled?: boolean;
   /** Tile local: nunca reproduz o próprio áudio */
   isLocal?: boolean;
   muted?: boolean;
@@ -19,6 +21,7 @@ export function StreamTile({
   micStream,
   nick,
   hasVideo,
+  videoStalled,
   isLocal,
   muted,
   label,
@@ -31,7 +34,18 @@ export function StreamTile({
 
   useEffect(() => {
     const el = videoRef.current;
-    if (el && el.srcObject !== screenStream) el.srcObject = screenStream;
+    if (!el) return;
+    if (el.srcObject !== screenStream) el.srcObject = screenStream;
+    // Depois de uma oscilação de rede o elemento pode ficar pausado e nunca
+    // voltar sozinho — reforça o play.
+    const resume = () => void el.play().catch(() => {});
+    resume();
+    el.addEventListener("pause", resume);
+    el.addEventListener("stalled", resume);
+    return () => {
+      el.removeEventListener("pause", resume);
+      el.removeEventListener("stalled", resume);
+    };
   }, [screenStream, hasVideo]);
 
   const goFullscreen = () => {
@@ -41,12 +55,13 @@ export function StreamTile({
     else void el.requestFullscreen?.();
   };
 
+
   return (
     <div
       ref={containerRef}
       className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]"
     >
-      <div className="aspect-video w-full bg-muted/40">
+      <div className="relative aspect-video w-full bg-muted/40">
         {hasVideo ? (
           <video
             ref={videoRef}
@@ -65,7 +80,13 @@ export function StreamTile({
             </span>
           </div>
         )}
+        {hasVideo && videoStalled ? (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-xs text-muted-foreground backdrop-blur-sm">
+            <Loader2 className="size-4 animate-spin" /> reconectando a transmissão…
+          </div>
+        ) : null}
       </div>
+
 
       {/* Ações */}
       <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">

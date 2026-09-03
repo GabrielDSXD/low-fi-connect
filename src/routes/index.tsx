@@ -92,8 +92,14 @@ function Index() {
           </span>
           {call.status === "connecting" ? <span>· conectando…</span> : null}
         </div>
-        <span className="text-sm font-medium text-foreground">{call.nick}</span>
+        <div className="flex items-center gap-3">
+          {call.error ? (
+            <span className="hidden text-xs text-muted-foreground sm:inline">{call.error}</span>
+          ) : null}
+          <span className="text-sm font-medium text-foreground">{call.nick}</span>
+        </div>
       </header>
+
 
       <section className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <StreamTile
@@ -111,8 +117,10 @@ function Index() {
             micStream={p.micStream}
             nick={p.nick}
             hasVideo={p.hasVideo}
+            videoStalled={p.videoStalled || p.connection === "disconnected"}
           />
         ))}
+
 
       </section>
 

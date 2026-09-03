@@ -8,6 +8,9 @@ export type Participant = {
   micStream: MediaStream;
   screenStream: MediaStream;
   hasVideo: boolean;
+  /** Faixa de vídeo existe, mas está sem dados chegando (rede instável) */
+  videoStalled: boolean;
+  connection: RTCPeerConnectionState;
 };
 export type ChatMessage = {
   id: string;
@@ -39,6 +42,7 @@ type PeerState = {
   ignoreOffer: boolean;
   videoSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
+  recoverTimer: ReturnType<typeof setTimeout> | null;
 };
 
 type SignalPayload = {
@@ -60,6 +64,8 @@ export function useCall() {
 
   const meRef = useRef<string>("");
   const nickRef = useRef("");
+  const statusRef = useRef<Status>("idle");
+  statusRef.current = status;
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef(new Map<string, PeerState>());
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -67,14 +73,20 @@ export function useCall() {
 
   const sync = useCallback(() => {
     setParticipants(
-      [...peersRef.current.entries()].map(([id, p]) => ({
-        id,
-        nick: p.nick,
-        micStream: p.micStream,
-        screenStream: p.screenStream,
-        hasVideo: p.screenStream.getVideoTracks().some((t) => t.readyState === "live" && !t.muted),
-
-      })),
+      [...peersRef.current.entries()].map(([id, p]) => {
+        const video = p.screenStream.getVideoTracks().filter((t) => t.readyState === "live");
+        return {
+          id,
+          nick: p.nick,
+          micStream: p.micStream,
+          screenStream: p.screenStream,
+          // Não derruba o vídeo por um "mute" momentâneo da faixa: isso apagava
+          // a transmissão de vez a cada oscilação de rede.
+          hasVideo: video.length > 0,
+          videoStalled: video.some((t) => t.muted),
+          connection: p.pc.connectionState,
+        };
+      }),
     );
   }, []);
 
@@ -108,6 +120,7 @@ export function useCall() {
         ignoreOffer: false,
         videoSender: null,
         screenAudioSender: null,
+        recoverTimer: null,
       };
       peersRef.current.set(id, state);
 
@@ -143,6 +156,11 @@ export function useCall() {
         // Ordem fixa dos transceivers: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela.
         const index = pc.getTransceivers().indexOf(transceiver);
         const target = index === 0 ? state.micStream : state.screenStream;
+        // Após um ICE restart chega uma faixa nova; descarta as antigas mortas
+        // para não acumular faixas e travar o <video>.
+        for (const old of target.getTracks()) {
+          if (old.kind === track.kind && old.readyState !== "live") target.removeTrack(old);
+        }
         target.addTrack(track);
         sync();
         track.onended = () => {
@@ -157,8 +175,37 @@ export function useCall() {
         track.onunmute = sync;
       };
 
+      // Recuperação: quando o caminho P2P cai, o vídeo simplesmente congela.
+      // Quem faz a oferta (impolite) reinicia o ICE; o outro lado só responde.
+      const scheduleRecovery = (delay: number) => {
+        if (state.recoverTimer) return;
+        state.recoverTimer = setTimeout(() => {
+          state.recoverTimer = null;
+          const bad = pc.connectionState === "disconnected" || pc.connectionState === "failed";
+          if (!bad || pc.signalingState === "closed") return;
+          console.warn(`peer ${id}: conexão ${pc.connectionState}, reiniciando ICE`);
+          if (!state.polite) {
+            try {
+              pc.restartIce();
+            } catch (err) {
+              console.error("restartIce error", err);
+            }
+          }
+          scheduleRecovery(6_000);
+        }, delay);
+      };
 
-      pc.onconnectionstatechange = () => sync();
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        if (s === "disconnected") scheduleRecovery(3_000);
+        else if (s === "failed") scheduleRecovery(0);
+        else if (s === "connected" && state.recoverTimer) {
+          clearTimeout(state.recoverTimer);
+          state.recoverTimer = null;
+        }
+        sync();
+      };
+
 
       sync();
       return state;
@@ -208,7 +255,10 @@ export function useCall() {
   );
 
   const cleanup = useCallback(() => {
-    for (const [, p] of peersRef.current) p.pc.close();
+    for (const [, p] of peersRef.current) {
+      if (p.recoverTimer) clearTimeout(p.recoverTimer);
+      p.pc.close();
+    }
     peersRef.current.clear();
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -266,10 +316,16 @@ export function useCall() {
         present.delete(meRef.current);
 
         for (const [id, peerNick] of present) createPeer(id, peerNick);
-        for (const id of [...peersRef.current.keys()]) {
-          if (!present.has(id)) {
-            peersRef.current.get(id)?.pc.close();
-            peersRef.current.delete(id);
+        // Presence vazio geralmente é uma oscilação do canal; derrubar todos os
+        // peers nesse momento matava a transmissão em andamento sem motivo.
+        if (present.size > 0) {
+          for (const id of [...peersRef.current.keys()]) {
+            if (!present.has(id)) {
+              const peer = peersRef.current.get(id);
+              if (peer?.recoverTimer) clearTimeout(peer.recoverTimer);
+              peer?.pc.close();
+              peersRef.current.delete(id);
+            }
           }
         }
         sync();
@@ -278,10 +334,18 @@ export function useCall() {
       channel.subscribe(async (state) => {
         if (state === "SUBSCRIBED") {
           setStatus("connected");
+          setError(null);
           await channel.track({ id: meRef.current, nick: clean });
         } else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") {
-          setError("Não foi possível conectar à sala. Tente recarregar a página.");
-          setStatus("error");
+          console.warn(`canal de sinalização: ${state}`);
+          // Já estava na call: o cliente reconecta sozinho e as conexões P2P
+          // continuam vivas — não derruba a chamada por isso.
+          if (statusRef.current === "connected") {
+            setError("Sinalização instável, reconectando… (a call continua)");
+          } else {
+            setError("Não foi possível conectar à sala. Tente recarregar a página.");
+            setStatus("error");
+          }
         }
       });
     },

@@ -111,8 +111,10 @@ function Index() {
             micStream={p.micStream}
             nick={p.nick}
             hasVideo={p.hasVideo}
+            videoStalled={p.videoStalled || p.connection === "disconnected"}
           />
         ))}
+
 
       </section>
 

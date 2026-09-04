@@ -60,6 +60,8 @@ export function useCall() {
   const [micOn, setMicOn] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
+  const [shareAudioOn, setShareAudioOn] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const meRef = useRef<string>("");

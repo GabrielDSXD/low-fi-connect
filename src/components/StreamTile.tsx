@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor, Loader2 } from "lucide-react";
+import {
+  Maximize2,
+  MicOff,
+  MonitorOff,
+  Volume2,
+  VolumeX,
+  Monitor,
+  Loader2,
+  Play,
+  EyeOff,
+} from "lucide-react";
 
 type Props = {
   /** Stream com o vídeo (e áudio) do compartilhamento de tela */
@@ -31,6 +41,13 @@ export function StreamTile({
   const [micVol, setMicVol] = useState(1);
   const [screenVol, setScreenVol] = useState(1);
   const [showControls, setShowControls] = useState(false);
+  // Transmissões dos outros só são renderizadas quando você escolhe assistir.
+  const [watching, setWatching] = useState(!!isLocal);
+  const showVideo = hasVideo && (isLocal || watching);
+
+  useEffect(() => {
+    if (!hasVideo && !isLocal) setWatching(false);
+  }, [hasVideo, isLocal]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -46,10 +63,10 @@ export function StreamTile({
       el.removeEventListener("pause", resume);
       el.removeEventListener("stalled", resume);
     };
-  }, [screenStream, hasVideo]);
+  }, [screenStream, showVideo]);
 
   const goFullscreen = () => {
-    const el = hasVideo ? videoRef.current : containerRef.current;
+    const el = showVideo ? videoRef.current : containerRef.current;
     if (!el) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();
@@ -62,7 +79,7 @@ export function StreamTile({
       className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]"
     >
       <div className="relative aspect-video w-full bg-muted/40">
-        {hasVideo ? (
+        {showVideo ? (
           <video
             ref={videoRef}
             autoPlay
@@ -75,12 +92,22 @@ export function StreamTile({
             <div className="flex size-16 items-center justify-center rounded-full bg-secondary text-xl font-semibold text-secondary-foreground">
               {nick.slice(0, 2).toUpperCase()}
             </div>
-            <span className="flex items-center gap-1.5 text-xs">
-              <MonitorOff className="size-3.5" /> sem tela compartilhada
-            </span>
+            {hasVideo ? (
+              <button
+                type="button"
+                onClick={() => setWatching(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+              >
+                <Play className="size-4" /> Assistir transmissão
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs">
+                <MonitorOff className="size-3.5" /> sem tela compartilhada
+              </span>
+            )}
           </div>
         )}
-        {hasVideo && videoStalled ? (
+        {showVideo && videoStalled ? (
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-xs text-muted-foreground backdrop-blur-sm">
             <Loader2 className="size-4 animate-spin" /> reconectando a transmissão…
           </div>
@@ -105,7 +132,18 @@ export function StreamTile({
             )}
           </button>
         ) : null}
-        {hasVideo ? (
+        {!isLocal && showVideo ? (
+          <button
+            type="button"
+            onClick={() => setWatching(false)}
+            title="Parar de assistir"
+            aria-label="Parar de assistir esta transmissão"
+            className="rounded-lg border border-border bg-card/90 p-2 text-foreground backdrop-blur transition hover:opacity-80"
+          >
+            <EyeOff className="size-4" />
+          </button>
+        ) : null}
+        {showVideo ? (
           <button
             type="button"
             onClick={goFullscreen}
@@ -169,7 +207,7 @@ export function StreamTile({
       {!isLocal ? (
         <>
           <RemoteAudio stream={micStream ?? null} volume={micVol} />
-          <RemoteAudio stream={screenStream} volume={screenVol} />
+          <RemoteAudio stream={watching ? screenStream : null} volume={screenVol} />
         </>
       ) : null}
     </div>

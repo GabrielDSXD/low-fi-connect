@@ -41,6 +41,13 @@ export function StreamTile({
   const [micVol, setMicVol] = useState(1);
   const [screenVol, setScreenVol] = useState(1);
   const [showControls, setShowControls] = useState(false);
+  // Transmissões dos outros só são renderizadas quando você escolhe assistir.
+  const [watching, setWatching] = useState(!!isLocal);
+  const showVideo = hasVideo && (isLocal || watching);
+
+  useEffect(() => {
+    if (!hasVideo && !isLocal) setWatching(false);
+  }, [hasVideo, isLocal]);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -56,10 +63,10 @@ export function StreamTile({
       el.removeEventListener("pause", resume);
       el.removeEventListener("stalled", resume);
     };
-  }, [screenStream, hasVideo]);
+  }, [screenStream, showVideo]);
 
   const goFullscreen = () => {
-    const el = hasVideo ? videoRef.current : containerRef.current;
+    const el = showVideo ? videoRef.current : containerRef.current;
     if (!el) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen?.();

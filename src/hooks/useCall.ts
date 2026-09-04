@@ -60,6 +60,8 @@ export function useCall() {
   const [micOn, setMicOn] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
+  const [shareAudioOn, setShareAudioOn] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   const meRef = useRef<string>("");
@@ -269,6 +271,7 @@ export function useCall() {
     setParticipants([]);
     setLocalScreen(null);
     setSharing(false);
+    setShareAudioOn(false);
     setMessages([]);
   }, []);
 
@@ -376,28 +379,42 @@ export function useCall() {
     screenStreamRef.current = null;
     setLocalScreen(null);
     setSharing(false);
+    setShareAudioOn(false);
   }, []);
 
   const startShare = useCallback(async () => {
     try {
       const screen = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 30 },
-        audio: true,
-      });
+        // Sem processamento de voz: o áudio da tela é música/vídeo, não fala.
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        // Chrome: oferece também o áudio do sistema, além do da aba.
+        systemAudio: "include",
+        selfBrowserSurface: "include",
+      } as DisplayMediaStreamOptions);
       screenStreamRef.current = screen;
       setLocalScreen(screen);
       setSharing(true);
       const video = screen.getVideoTracks()[0] ?? null;
       const audio = screen.getAudioTracks()[0] ?? null;
+      if (video) video.contentHint = "detail";
+      if (audio) audio.contentHint = "music";
+      setShareAudioOn(!!audio);
       for (const [, p] of peersRef.current) {
-        if (video) await p.videoSender?.replaceTrack(video);
-        if (audio) await p.screenAudioSender?.replaceTrack(audio);
+        await p.videoSender?.replaceTrack(video ?? null);
+        await p.screenAudioSender?.replaceTrack(audio ?? null);
       }
       video?.addEventListener("ended", () => stopShare());
+      audio?.addEventListener("ended", () => setShareAudioOn(false));
     } catch {
       /* usuário cancelou */
     }
   }, [stopShare]);
+
 
   const toggleShare = useCallback(() => {
     if (sharing) stopShare();
@@ -428,6 +445,7 @@ export function useCall() {
     micOn,
     sharing,
     localScreen,
+    shareAudioOn,
     messages,
     join,
     leave,

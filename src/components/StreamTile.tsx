@@ -180,11 +180,25 @@ function RemoteAudio({ stream, volume }: { stream: MediaStream | null; volume: n
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const el = ref.current;
-    if (el && el.srcObject !== stream) el.srcObject = stream;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    // Faixas de áudio que chegam depois (áudio da tela) podem deixar o
+    // elemento pausado: reforça o play e destrava autoplay no 1º clique.
+    const resume = () => void el.play().catch(() => {});
+    resume();
+    el.addEventListener("pause", resume);
+    document.addEventListener("click", resume);
+    const id = setInterval(resume, 2_000);
+    return () => {
+      el.removeEventListener("pause", resume);
+      document.removeEventListener("click", resume);
+      clearInterval(id);
+    };
   }, [stream]);
   useEffect(() => {
     const el = ref.current;
     if (el) el.volume = Math.min(1, volume);
-  }, [volume]);
+  }, [stream, volume]);
   return <audio ref={ref} autoPlay className="hidden" />;
 }
+

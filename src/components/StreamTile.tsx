@@ -79,7 +79,7 @@ export function StreamTile({
       className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[0_10px_40px_-20px_rgba(0,0,0,0.6)]"
     >
       <div className="relative aspect-video w-full bg-muted/40">
-        {hasVideo ? (
+        {showVideo ? (
           <video
             ref={videoRef}
             autoPlay
@@ -92,12 +92,22 @@ export function StreamTile({
             <div className="flex size-16 items-center justify-center rounded-full bg-secondary text-xl font-semibold text-secondary-foreground">
               {nick.slice(0, 2).toUpperCase()}
             </div>
-            <span className="flex items-center gap-1.5 text-xs">
-              <MonitorOff className="size-3.5" /> sem tela compartilhada
-            </span>
+            {hasVideo ? (
+              <button
+                type="button"
+                onClick={() => setWatching(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+              >
+                <Play className="size-4" /> Assistir transmissão
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs">
+                <MonitorOff className="size-3.5" /> sem tela compartilhada
+              </span>
+            )}
           </div>
         )}
-        {hasVideo && videoStalled ? (
+        {showVideo && videoStalled ? (
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-xs text-muted-foreground backdrop-blur-sm">
             <Loader2 className="size-4 animate-spin" /> reconectando a transmissão…
           </div>

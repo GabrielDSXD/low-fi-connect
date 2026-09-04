@@ -132,7 +132,18 @@ export function StreamTile({
             )}
           </button>
         ) : null}
-        {hasVideo ? (
+        {!isLocal && showVideo ? (
+          <button
+            type="button"
+            onClick={() => setWatching(false)}
+            title="Parar de assistir"
+            aria-label="Parar de assistir esta transmissão"
+            className="rounded-lg border border-border bg-card/90 p-2 text-foreground backdrop-blur transition hover:opacity-80"
+          >
+            <EyeOff className="size-4" />
+          </button>
+        ) : null}
+        {showVideo ? (
           <button
             type="button"
             onClick={goFullscreen}

@@ -271,6 +271,7 @@ export function useCall() {
     setParticipants([]);
     setLocalScreen(null);
     setSharing(false);
+    setShareAudioOn(false);
     setMessages([]);
   }, []);
 
@@ -378,6 +379,7 @@ export function useCall() {
     screenStreamRef.current = null;
     setLocalScreen(null);
     setSharing(false);
+    setShareAudioOn(false);
   }, []);
 
   const startShare = useCallback(async () => {
@@ -443,6 +445,7 @@ export function useCall() {
     micOn,
     sharing,
     localScreen,
+    shareAudioOn,
     messages,
     join,
     leave,

@@ -207,7 +207,7 @@ export function StreamTile({
       {!isLocal ? (
         <>
           <RemoteAudio stream={micStream ?? null} volume={micVol} />
-          <RemoteAudio stream={screenStream} volume={screenVol} />
+          <RemoteAudio stream={watching ? screenStream : null} volume={screenVol} />
         </>
       ) : null}
     </div>

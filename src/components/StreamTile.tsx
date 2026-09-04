@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, MicOff, MonitorOff, Volume2, VolumeX, Monitor, Loader2 } from "lucide-react";
+import {
+  Maximize2,
+  MicOff,
+  MonitorOff,
+  Volume2,
+  VolumeX,
+  Monitor,
+  Loader2,
+  Play,
+  EyeOff,
+} from "lucide-react";
 
 type Props = {
   /** Stream com o vídeo (e áudio) do compartilhamento de tela */

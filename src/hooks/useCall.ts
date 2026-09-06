@@ -392,8 +392,9 @@ export function useCall() {
           noiseSuppression: false,
           autoGainControl: false,
         },
-        // Chrome: oferece também o áudio do sistema, além do da aba.
-        systemAudio: "include",
+        // O som vai junto apenas do que foi compartilhado (aba/janela),
+        // nunca o áudio geral do computador.
+        systemAudio: "exclude",
         selfBrowserSurface: "include",
       } as DisplayMediaStreamOptions);
       screenStreamRef.current = screen;

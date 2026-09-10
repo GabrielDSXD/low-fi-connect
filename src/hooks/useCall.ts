@@ -42,6 +42,8 @@ type PeerState = {
   ignoreOffer: boolean;
   videoSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
+  /** O peer avisou via presence que está compartilhando tela */
+  sharing: boolean;
   recoverTimer: ReturnType<typeof setTimeout> | null;
 };
 
@@ -82,9 +84,9 @@ export function useCall() {
           nick: p.nick,
           micStream: p.micStream,
           screenStream: p.screenStream,
-          // Não derruba o vídeo por um "mute" momentâneo da faixa: isso apagava
-          // a transmissão de vez a cada oscilação de rede.
-          hasVideo: video.length > 0,
+          // Só mostra transmissão quando o peer avisou que está compartilhando:
+          // ao parar, a faixa remota continua "viva" (muda) e enganava esse flag.
+          hasVideo: p.sharing && video.length > 0,
           videoStalled: video.some((t) => t.muted),
           connection: p.pc.connectionState,
         };

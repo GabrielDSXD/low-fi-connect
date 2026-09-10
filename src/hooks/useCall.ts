@@ -417,6 +417,7 @@ export function useCall() {
       screenStreamRef.current = screen;
       setLocalScreen(screen);
       setSharing(true);
+      trackPresence(true);
       const video = screen.getVideoTracks()[0] ?? null;
       const audio = screen.getAudioTracks()[0] ?? null;
       if (video) video.contentHint = "detail";

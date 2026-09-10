@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Maximize2,
   MicOff,
-  MonitorOff,
   Volume2,
   VolumeX,
   Monitor,
@@ -100,11 +99,7 @@ export function StreamTile({
               >
                 <Play className="size-4" /> Assistir transmissão
               </button>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs">
-                <MonitorOff className="size-3.5" /> sem tela compartilhada
-              </span>
-            )}
+            ) : null}
           </div>
         )}
         {showVideo && videoStalled ? (

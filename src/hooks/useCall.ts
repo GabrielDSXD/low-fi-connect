@@ -42,6 +42,8 @@ type PeerState = {
   ignoreOffer: boolean;
   videoSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
+  /** O peer avisou via presence que está compartilhando tela */
+  sharing: boolean;
   recoverTimer: ReturnType<typeof setTimeout> | null;
 };
 
@@ -82,9 +84,9 @@ export function useCall() {
           nick: p.nick,
           micStream: p.micStream,
           screenStream: p.screenStream,
-          // Não derruba o vídeo por um "mute" momentâneo da faixa: isso apagava
-          // a transmissão de vez a cada oscilação de rede.
-          hasVideo: video.length > 0,
+          // Só mostra transmissão quando o peer avisou que está compartilhando:
+          // ao parar, a faixa remota continua "viva" (muda) e enganava esse flag.
+          hasVideo: p.sharing && video.length > 0,
           videoStalled: video.some((t) => t.muted),
           connection: p.pc.connectionState,
         };
@@ -122,6 +124,7 @@ export function useCall() {
         ignoreOffer: false,
         videoSender: null,
         screenAudioSender: null,
+        sharing: false,
         recoverTimer: null,
       };
       peersRef.current.set(id, state);
@@ -311,14 +314,19 @@ export function useCall() {
       });
 
       channel.on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState<{ id: string; nick: string }>();
-        const present = new Map<string, string>();
+        const state = channel.presenceState<{ id: string; nick: string; sharing?: boolean }>();
+        const present = new Map<string, { nick: string; sharing: boolean }>();
         for (const [, entries] of Object.entries(state)) {
-          for (const entry of entries) present.set(entry.id, entry.nick);
+          for (const entry of entries) {
+            present.set(entry.id, { nick: entry.nick, sharing: !!entry.sharing });
+          }
         }
         present.delete(meRef.current);
 
-        for (const [id, peerNick] of present) createPeer(id, peerNick);
+        for (const [id, info] of present) {
+          const peer = createPeer(id, info.nick);
+          if (peer.sharing !== info.sharing) peer.sharing = info.sharing;
+        }
         // Presence vazio geralmente é uma oscilação do canal; derrubar todos os
         // peers nesse momento matava a transmissão em andamento sem motivo.
         if (present.size > 0) {
@@ -368,6 +376,14 @@ export function useCall() {
     setMicOn(next);
   }, []);
 
+  // Avisa aos outros se estou compartilhando, para o botão "Assistir
+  // transmissão" aparecer/sumir mesmo antes de qualquer faixa chegar.
+  const trackPresence = useCallback((sharing: boolean) => {
+    const channel = channelRef.current;
+    if (!channel) return;
+    void channel.track({ id: meRef.current, nick: nickRef.current, sharing });
+  }, []);
+
   const stopShare = useCallback(() => {
     const screen = screenStreamRef.current;
     if (!screen) return;
@@ -380,7 +396,8 @@ export function useCall() {
     setLocalScreen(null);
     setSharing(false);
     setShareAudioOn(false);
-  }, []);
+    trackPresence(false);
+  }, [trackPresence]);
 
   const startShare = useCallback(async () => {
     try {
@@ -400,6 +417,7 @@ export function useCall() {
       screenStreamRef.current = screen;
       setLocalScreen(screen);
       setSharing(true);
+      trackPresence(true);
       const video = screen.getVideoTracks()[0] ?? null;
       const audio = screen.getAudioTracks()[0] ?? null;
       if (video) video.contentHint = "detail";
@@ -414,7 +432,7 @@ export function useCall() {
     } catch {
       /* usuário cancelou */
     }
-  }, [stopShare]);
+  }, [stopShare, trackPresence]);
 
 
   const toggleShare = useCallback(() => {

@@ -124,6 +124,7 @@ export function useCall() {
         ignoreOffer: false,
         videoSender: null,
         screenAudioSender: null,
+        sharing: false,
         recoverTimer: null,
       };
       peersRef.current.set(id, state);
@@ -313,14 +314,19 @@ export function useCall() {
       });
 
       channel.on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState<{ id: string; nick: string }>();
-        const present = new Map<string, string>();
+        const state = channel.presenceState<{ id: string; nick: string; sharing?: boolean }>();
+        const present = new Map<string, { nick: string; sharing: boolean }>();
         for (const [, entries] of Object.entries(state)) {
-          for (const entry of entries) present.set(entry.id, entry.nick);
+          for (const entry of entries) {
+            present.set(entry.id, { nick: entry.nick, sharing: !!entry.sharing });
+          }
         }
         present.delete(meRef.current);
 
-        for (const [id, peerNick] of present) createPeer(id, peerNick);
+        for (const [id, info] of present) {
+          const peer = createPeer(id, info.nick);
+          if (peer.sharing !== info.sharing) peer.sharing = info.sharing;
+        }
         // Presence vazio geralmente é uma oscilação do canal; derrubar todos os
         // peers nesse momento matava a transmissão em andamento sem motivo.
         if (present.size > 0) {

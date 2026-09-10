@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Maximize2,
   MicOff,
-  MonitorOff,
   Volume2,
   VolumeX,
   Monitor,

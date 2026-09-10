@@ -432,7 +432,7 @@ export function useCall() {
     } catch {
       /* usuário cancelou */
     }
-  }, [stopShare]);
+  }, [stopShare, trackPresence]);
 
 
   const toggleShare = useCallback(() => {

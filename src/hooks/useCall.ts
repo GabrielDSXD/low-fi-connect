@@ -376,6 +376,14 @@ export function useCall() {
     setMicOn(next);
   }, []);
 
+  // Avisa aos outros se estou compartilhando, para o botão "Assistir
+  // transmissão" aparecer/sumir mesmo antes de qualquer faixa chegar.
+  const trackPresence = useCallback((sharing: boolean) => {
+    const channel = channelRef.current;
+    if (!channel) return;
+    void channel.track({ id: meRef.current, nick: nickRef.current, sharing });
+  }, []);
+
   const stopShare = useCallback(() => {
     const screen = screenStreamRef.current;
     if (!screen) return;
@@ -388,7 +396,8 @@ export function useCall() {
     setLocalScreen(null);
     setSharing(false);
     setShareAudioOn(false);
-  }, []);
+    trackPresence(false);
+  }, [trackPresence]);
 
   const startShare = useCallback(async () => {
     try {

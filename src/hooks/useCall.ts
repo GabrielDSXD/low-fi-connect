@@ -25,7 +25,7 @@ export type ChatMessage = {
 
 type Status = "idle" | "connecting" | "connected" | "error";
 
-const ROOM = "sala-unica";
+
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },

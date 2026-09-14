@@ -58,6 +58,7 @@ export function useCall() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [nick, setNick] = useState("");
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [micOn, setMicOn] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -68,6 +69,7 @@ export function useCall() {
 
   const meRef = useRef<string>("");
   const nickRef = useRef("");
+  const roomRef = useRef<string>("");
   const statusRef = useRef<Status>("idle");
   statusRef.current = status;
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -279,13 +281,15 @@ export function useCall() {
   }, []);
 
   const join = useCallback(
-    async (desiredNick: string) => {
+    async (desiredNick: string, room: string) => {
       const clean = desiredNick.trim().slice(0, 24);
-      if (!clean) return;
+      if (!clean || !room) return;
       setStatus("connecting");
       setError(null);
       setNick(clean);
       nickRef.current = clean;
+      roomRef.current = room;
+      setRoomId(room);
       meRef.current = crypto.randomUUID();
 
       try {
@@ -298,7 +302,7 @@ export function useCall() {
         setMicOn(false);
       }
 
-      const channel = supabase.channel(`call:${ROOM}`, {
+      const channel = supabase.channel(`call:${roomRef.current}`, {
         config: { presence: { key: meRef.current }, broadcast: { self: false } },
       });
       channelRef.current = channel;
@@ -366,6 +370,8 @@ export function useCall() {
   const leave = useCallback(() => {
     cleanup();
     setStatus("idle");
+    setRoomId(null);
+    roomRef.current = "";
   }, [cleanup]);
 
   const toggleMic = useCallback(() => {
@@ -460,6 +466,7 @@ export function useCall() {
     status,
     error,
     nick,
+    roomId,
     participants,
     micOn,
     sharing,

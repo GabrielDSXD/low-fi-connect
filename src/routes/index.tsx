@@ -4,6 +4,8 @@ import { Mic, MicOff, MonitorUp, MonitorOff, PhoneOff, Users, Radio } from "luci
 import { useCall } from "@/hooks/useCall";
 import { StreamTile } from "@/components/StreamTile";
 import { ChatPanel } from "@/components/ChatPanel";
+import { useLobby } from "@/hooks/useLobby";
+import { ROOMS } from "@/lib/rooms";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,49 +31,67 @@ export const Route = createFileRoute("/")({
 function Index() {
   const call = useCall();
   const [input, setInput] = useState("");
+  const inLobby = call.status === "idle" || call.status === "error";
+  const occupants = useLobby(inLobby);
 
-  if (call.status === "idle" || call.status === "error") {
+  if (inLobby) {
+    const nickReady = !!input.trim();
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-sm">
+      <main className="min-h-screen bg-background px-4 py-12">
+        <div className="mx-auto w-full max-w-3xl">
           <div className="mb-8 text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
-              <Radio className="size-3.5 text-primary" /> sala única
+              <Radio className="size-3.5 text-primary" /> 5 salas
             </span>
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
-              Entrar na call
+              Escolha uma sala
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Escolha um nickname. Todos caem na mesma sala.
+              Digite seu nickname e entre na sala em que seus amigos estão.
             </p>
           </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void call.join(input);
-            }}
-            className="space-y-3"
-          >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="seu nickname"
-              maxLength={24}
-              autoFocus
-              className="w-full rounded-xl border border-input bg-card px-4 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/40"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="w-full rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
-            >
-              Entrar
-            </button>
-          </form>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="seu nickname"
+            maxLength={24}
+            autoFocus
+            className="mx-auto mb-6 block w-full max-w-sm rounded-xl border border-input bg-card px-4 py-3 text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/40"
+          />
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {ROOMS.map((room) => {
+              const people = occupants[room.id] ?? [];
+              return (
+                <div
+                  key={room.id}
+                  className="rounded-2xl border border-border bg-card p-4 transition hover:border-primary/60"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-medium text-foreground">{room.name}</h2>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Users className="size-3.5" />
+                      {people.length}
+                    </span>
+                  </div>
+                  <p className="mt-2 min-h-10 text-sm text-muted-foreground">
+                    {people.length ? people.join(", ") : "vazia"}
+                  </p>
+                  <button
+                    onClick={() => void call.join(input, room.id)}
+                    disabled={!nickReady}
+                    className="mt-3 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-40"
+                  >
+                    Entrar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
           {call.error ? (
-            <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {call.error}
             </p>
           ) : null}
@@ -81,11 +101,14 @@ function Index() {
   }
 
   const total = call.participants.length + 1;
+  const roomName = ROOMS.find((r) => r.id === call.roomId)?.name ?? "Sala";
 
   return (
     <main className="min-h-screen bg-background">
       <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{roomName}</span>
+          <span>·</span>
           <Users className="size-4" />
           <span>
             {total} {total === 1 ? "pessoa" : "pessoas"} na call

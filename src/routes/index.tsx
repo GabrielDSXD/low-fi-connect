@@ -107,6 +107,8 @@ function Index() {
     <main className="min-h-screen bg-background">
       <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{roomName}</span>
+          <span>·</span>
           <Users className="size-4" />
           <span>
             {total} {total === 1 ? "pessoa" : "pessoas"} na call

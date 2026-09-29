@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Capturas locais da revisão de design (mostram usuários reais)
+.impeccable/review/
+.impeccable/hook.cache.json

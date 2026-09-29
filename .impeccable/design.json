@@ -1,0 +1,434 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T21:12:06.114Z",
+  "title": "Design System: Lobby",
+  "extensions": {
+    "colorMeta": {
+      "rail": {
+        "role": "neutral",
+        "displayName": "Grafite Trilho",
+        "canonical": "oklch(0.195 0.012 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.012 272)",
+          "oklch(0.26 0.012 272)",
+          "oklch(0.37 0.012 272)",
+          "oklch(0.48 0.012 272)",
+          "oklch(0.6 0.012 272)",
+          "oklch(0.72 0.012 272)",
+          "oklch(0.84 0.012 272)",
+          "oklch(0.95 0.012 272)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Grafite Base",
+        "canonical": "oklch(0.235 0.013 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.013 272)",
+          "oklch(0.26 0.013 272)",
+          "oklch(0.37 0.013 272)",
+          "oklch(0.48 0.013 272)",
+          "oklch(0.6 0.013 272)",
+          "oklch(0.72 0.013 272)",
+          "oklch(0.84 0.013 272)",
+          "oklch(0.95 0.013 272)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Grafite Cartão",
+        "canonical": "oklch(0.265 0.014 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.014 272)",
+          "oklch(0.26 0.014 272)",
+          "oklch(0.37 0.014 272)",
+          "oklch(0.48 0.014 272)",
+          "oklch(0.6 0.014 272)",
+          "oklch(0.72 0.014 272)",
+          "oklch(0.84 0.014 272)",
+          "oklch(0.95 0.014 272)"
+        ]
+      },
+      "popover": {
+        "role": "neutral",
+        "displayName": "Grafite Popover",
+        "canonical": "oklch(0.29 0.015 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.015 272)",
+          "oklch(0.26 0.015 272)",
+          "oklch(0.37 0.015 272)",
+          "oklch(0.48 0.015 272)",
+          "oklch(0.6 0.015 272)",
+          "oklch(0.72 0.015 272)",
+          "oklch(0.84 0.015 272)",
+          "oklch(0.95 0.015 272)"
+        ]
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Grafite Elevado",
+        "canonical": "oklch(0.31 0.015 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.015 272)",
+          "oklch(0.26 0.015 272)",
+          "oklch(0.37 0.015 272)",
+          "oklch(0.48 0.015 272)",
+          "oklch(0.6 0.015 272)",
+          "oklch(0.72 0.015 272)",
+          "oklch(0.84 0.015 272)",
+          "oklch(0.95 0.015 272)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Seam",
+        "canonical": "oklch(0.34 0.013 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.013 272)",
+          "oklch(0.26 0.013 272)",
+          "oklch(0.37 0.013 272)",
+          "oklch(0.48 0.013 272)",
+          "oklch(0.6 0.013 272)",
+          "oklch(0.72 0.013 272)",
+          "oklch(0.84 0.013 272)",
+          "oklch(0.95 0.013 272)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Poço",
+        "canonical": "oklch(0.185 0.012 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.012 272)",
+          "oklch(0.26 0.012 272)",
+          "oklch(0.37 0.012 272)",
+          "oklch(0.48 0.012 272)",
+          "oklch(0.6 0.012 272)",
+          "oklch(0.72 0.012 272)",
+          "oklch(0.84 0.012 272)",
+          "oklch(0.95 0.012 272)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Texto",
+        "canonical": "oklch(0.95 0.006 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.006 272)",
+          "oklch(0.26 0.006 272)",
+          "oklch(0.37 0.006 272)",
+          "oklch(0.48 0.006 272)",
+          "oklch(0.6 0.006 272)",
+          "oklch(0.72 0.006 272)",
+          "oklch(0.84 0.006 272)",
+          "oklch(0.95 0.006 272)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Texto Calado",
+        "canonical": "oklch(0.74 0.014 272)",
+        "tonalRamp": [
+          "oklch(0.15 0.014 272)",
+          "oklch(0.26 0.014 272)",
+          "oklch(0.37 0.014 272)",
+          "oklch(0.48 0.014 272)",
+          "oklch(0.6 0.014 272)",
+          "oklch(0.72 0.014 272)",
+          "oklch(0.84 0.014 272)",
+          "oklch(0.95 0.014 272)"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Índigo de Ação",
+        "canonical": "oklch(0.56 0.19 278)",
+        "tonalRamp": [
+          "oklch(0.15 0.19 278)",
+          "oklch(0.26 0.19 278)",
+          "oklch(0.37 0.19 278)",
+          "oklch(0.48 0.19 278)",
+          "oklch(0.6 0.19 278)",
+          "oklch(0.72 0.19 278)",
+          "oklch(0.84 0.19 278)",
+          "oklch(0.95 0.19 278)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "Texto sobre Índigo",
+        "canonical": "oklch(0.99 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.26 0 0)",
+          "oklch(0.37 0 0)",
+          "oklch(0.48 0 0)",
+          "oklch(0.6 0 0)",
+          "oklch(0.72 0 0)",
+          "oklch(0.84 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "primary-ink": {
+        "role": "primary",
+        "displayName": "Tinta Índigo",
+        "canonical": "oklch(0.8 0.11 278)",
+        "tonalRamp": [
+          "oklch(0.15 0.11 278)",
+          "oklch(0.26 0.11 278)",
+          "oklch(0.37 0.11 278)",
+          "oklch(0.48 0.11 278)",
+          "oklch(0.6 0.11 278)",
+          "oklch(0.72 0.11 278)",
+          "oklch(0.84 0.11 278)",
+          "oklch(0.95 0.11 278)"
+        ]
+      },
+      "speaking": {
+        "role": "secondary",
+        "displayName": "Verde Falando",
+        "canonical": "oklch(0.77 0.17 152)",
+        "tonalRamp": [
+          "oklch(0.15 0.17 152)",
+          "oklch(0.26 0.17 152)",
+          "oklch(0.37 0.17 152)",
+          "oklch(0.48 0.17 152)",
+          "oklch(0.6 0.17 152)",
+          "oklch(0.72 0.17 152)",
+          "oklch(0.84 0.17 152)",
+          "oklch(0.95 0.17 152)"
+        ]
+      },
+      "live": {
+        "role": "secondary",
+        "displayName": "Vermelho Ao Vivo",
+        "canonical": "oklch(0.58 0.21 25)",
+        "tonalRamp": [
+          "oklch(0.15 0.21 25)",
+          "oklch(0.26 0.21 25)",
+          "oklch(0.37 0.21 25)",
+          "oklch(0.48 0.21 25)",
+          "oklch(0.6 0.21 25)",
+          "oklch(0.72 0.21 25)",
+          "oklch(0.84 0.21 25)",
+          "oklch(0.95 0.21 25)"
+        ]
+      },
+      "destructive": {
+        "role": "secondary",
+        "displayName": "Vermelho Destrutivo",
+        "canonical": "oklch(0.7 0.18 22)",
+        "tonalRamp": [
+          "oklch(0.15 0.18 22)",
+          "oklch(0.26 0.18 22)",
+          "oklch(0.37 0.18 22)",
+          "oklch(0.48 0.18 22)",
+          "oklch(0.6 0.18 22)",
+          "oklch(0.72 0.18 22)",
+          "oklch(0.84 0.18 22)",
+          "oklch(0.95 0.18 22)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Só o \"Lobby\" da tela de entrada."
+      },
+      "brand": {
+        "displayName": "Brand",
+        "purpose": "A marca no topo do trilho."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Títulos das barras de 48px, nome da sala, botão primário."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Mensagens e compositor do chat; nomes de sala no trilho em 600."
+      },
+      "body-sm": {
+        "displayName": "Body-sm",
+        "purpose": "Membros aninhados, nomes em tiles, contagens e avisos."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Rótulo em maiúsculas de grupo de controles e de campo; nunca acima de um título."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Hora das mensagens, subtítulos e contagens, com números tabulares."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "O selo AO VIVO."
+      }
+    },
+    "shadows": [
+      {
+        "name": "flutuante",
+        "value": "0 8px 24px oklch(0 0 0 / 45%)",
+        "purpose": "Popovers e menu de volume; a única sombra de elevação."
+      },
+      {
+        "name": "speaking-ring",
+        "value": "0 0 0 2px var(--speaking-gap, var(--color-background)), 0 0 0 4px var(--color-speaking)",
+        "purpose": "Anel de fala no avatar; o vão usa a cor da superfície abaixo."
+      },
+      {
+        "name": "composer-focus",
+        "value": "0 0 0 2px var(--color-primary-ink)",
+        "purpose": "Foco do compositor do chat (focus-within)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Troca de cor e fundo em botões, linhas e campos."
+      },
+      {
+        "name": "speaking-ring",
+        "value": "box-shadow 150ms ease-out",
+        "purpose": "Entrada e saída do anel de fala."
+      },
+      {
+        "name": "popover-enter",
+        "value": "fade + zoom-in 95% + slide 8px (tw-animate-css)",
+        "purpose": "Abertura do seletor de dispositivos."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal (Entrar na tela de apelido).",
+      "html": "<button class=\"ds-btn-primary\">Entrar</button>",
+      "css": ".ds-btn-primary { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); min-height: 44px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-foreground); font-weight: 700; font-size: 1rem; cursor: pointer; transition: background-color 150ms; } .ds-btn-primary:hover { background: oklch(0.56 0.19 278 / 90%); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; }"
+    },
+    {
+      "name": "Botão secundário",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Entrar numa sala a partir da lista; assume o índigo no hover.",
+      "html": "<button class=\"ds-btn-secondary\">Entrar</button>",
+      "css": ".ds-btn-secondary { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); min-height: 44px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--secondary); color: var(--foreground); font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: background-color 150ms, color 150ms; } .ds-btn-secondary:hover { background: var(--primary); color: var(--primary-foreground); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Doca de controles",
+      "kind": "custom",
+      "refersTo": "dock-button",
+      "description": "Botões redondos de 44px (repouso, ligado, alerta) e Sair isolado por divisor.",
+      "html": "<div class=\"ds-dock\"><button class=\"ds-dock-btn ds-dock-alert\" aria-label=\"Ativar microfone\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><line x1=\"2\" x2=\"22\" y1=\"2\" y2=\"22\"/><path d=\"M18.89 13.23A7.12 7.12 0 0 0 19 12v-2\"/><path d=\"M5 10v2a7 7 0 0 0 12 5\"/><path d=\"M15 9.34V5a3 3 0 0 0-5.68-1.33\"/><path d=\"M9 9v3a3 3 0 0 0 5.12 2.12\"/><line x1=\"12\" x2=\"12\" y1=\"19\" y2=\"22\"/></svg></button><button class=\"ds-dock-btn ds-dock-on\" aria-label=\"Parar de compartilhar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/></svg></button><button class=\"ds-dock-btn\" aria-label=\"Microfone e saída de áudio\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41\"/></svg></button><span class=\"ds-dock-sep\" aria-hidden=\"true\"></span><button class=\"ds-leave\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473\"/><path d=\"m2 2 20 20\"/></svg> Sair</button></div>",
+      "css": ".ds-dock { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: var(--rail); border-top: 1px solid var(--border); } .ds-dock-btn { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); cursor: pointer; transition: background-color 150ms; } .ds-dock-btn:hover { background: oklch(0.31 0.015 272 / 70%); } .ds-dock-on { background: var(--primary); color: var(--primary-foreground); } .ds-dock-on:hover { background: oklch(0.56 0.19 278 / 90%); } .ds-dock-alert { background: oklch(0.7 0.18 22 / 15%); color: var(--destructive); } .ds-dock-alert:hover { background: oklch(0.7 0.18 22 / 25%); } .ds-dock-sep { width: 1px; height: 32px; margin: 0 8px; background: var(--border); } .ds-leave { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 20px; border: 0; border-radius: 9999px; background: var(--live); color: #fff; font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: filter 150ms; } .ds-leave:hover { filter: brightness(1.1); } .ds-dock-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-leave:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo sobre o poço; a borda vira tinta índigo no foco.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-label\">Seu apelido</span><input class=\"ds-input\" value=\"Gabi\"></label>",
+      "css": ".ds-field { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: grid; gap: 6px; width: 320px; } .ds-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em; color: var(--muted-foreground); } .ds-input { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--foreground); font-size: 1rem; outline: none; caret-color: var(--primary-ink); transition: border-color 150ms; } .ds-input:focus { border-color: var(--primary-ink); }"
+    },
+    {
+      "name": "Compositor do chat",
+      "kind": "input",
+      "refersTo": "chat-composer",
+      "description": "Campo sem borda sobre card, com anel índigo no focus-within.",
+      "html": "<form class=\"ds-composer\"><input class=\"ds-composer-input\" placeholder=\"Escreva uma mensagem\"><button type=\"button\" class=\"ds-composer-send\" aria-label=\"Enviar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z\"/><path d=\"M6 12h16\"/></svg></button></form>",
+      "css": ".ds-composer { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: flex; align-items: center; gap: 4px; width: 288px; padding-left: 12px; border-radius: 8px; background: var(--card); transition: box-shadow 150ms; } .ds-composer:focus-within { box-shadow: 0 0 0 2px var(--primary-ink); } .ds-composer-input { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); flex: 1; min-width: 0; min-height: 44px; border: 0; background: transparent; color: var(--foreground); font-size: 0.9375rem; outline: none; } .ds-composer-input::placeholder { color: var(--muted-foreground); } .ds-composer-send { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 6px; background: transparent; color: var(--primary-ink); cursor: pointer; transition: background-color 150ms; } .ds-composer-send:hover { background: var(--secondary); }"
+    },
+    {
+      "name": "Trilho de salas",
+      "kind": "nav",
+      "refersTo": "room-row",
+      "description": "Linhas de sala de 44px com membros aninhados, anel de fala e selo de tela.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Salas de voz\"><div class=\"ds-rail-label\">Salas de voz</div><button class=\"ds-room ds-room-current\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/></svg><span>vava</span><span class=\"ds-count\">2</span></button><ul class=\"ds-members\"><li><span class=\"ds-av ds-speaking\" style=\"background:oklch(0.52 0.12 245);color:oklch(0.96 0.03 245)\">L</span>Leo</li><li><span class=\"ds-av\" style=\"background:oklch(0.52 0.12 310);color:oklch(0.96 0.03 310)\">D</span>dantas<span class=\"ds-live-chip\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/></svg></span></li></ul><button class=\"ds-room\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/></svg><span>aram</span></button></nav>",
+      "css": ".ds-rail { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: grid; gap: 2px; width: 240px; padding: 16px 8px 8px; background: var(--rail); } .ds-rail-label { padding: 0 8px 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em; color: var(--muted-foreground); } .ds-room { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground); font-size: 0.9375rem; font-weight: 600; text-align: left; cursor: pointer; transition: background-color 150ms, color 150ms; } .ds-room svg { width: 16px; height: 16px; } .ds-room:hover { background: oklch(0.31 0.015 272 / 60%); color: var(--foreground); } .ds-room-current { background: var(--secondary); color: var(--foreground); } .ds-count { margin-left: auto; font-size: 0.75rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted-foreground); } .ds-room:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-members { list-style: none; margin: 0; padding: 4px 0 4px 24px; display: grid; gap: 1px; } .ds-members li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px; font-size: 0.875rem; color: var(--muted-foreground); } .ds-av { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 9999px; font-size: 0.6875rem; font-weight: 700; transition: box-shadow 150ms ease-out; } .ds-speaking { box-shadow: 0 0 0 2px var(--rail), 0 0 0 4px var(--speaking); } .ds-live-chip { display: grid; place-items: center; margin-left: auto; width: 20px; height: 20px; border-radius: 4px; background: var(--live); color: #fff; } .ds-live-chip svg { width: 12px; height: 12px; }"
+    },
+    {
+      "name": "Tile de participante",
+      "kind": "card",
+      "refersTo": "participant-tile",
+      "description": "Degrau card sem borda; avatar de 80px com anel de fala e selo AO VIVO.",
+      "html": "<div class=\"ds-tile\"><span class=\"ds-badge\">AO VIVO</span><span class=\"ds-tile-av\" style=\"background:oklch(0.52 0.12 245);color:oklch(0.96 0.03 245)\">L</span><span class=\"ds-tile-name\">Leo</span></div>",
+      "css": ".ds-tile { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 176px; padding: 40px 8px 12px; border-radius: 8px; background: var(--card); transition: background-color 150ms; } .ds-tile:hover { background: var(--secondary); } .ds-tile-av { display: grid; place-items: center; width: 80px; height: 80px; border-radius: 9999px; font-size: 1.875rem; font-weight: 700; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--speaking); } .ds-tile-name { margin-top: 8px; font-size: 0.875rem; font-weight: 600; color: var(--foreground); } .ds-badge { position: absolute; left: 8px; top: 8px; padding: 0 6px; border-radius: 4px; background: var(--live); color: #fff; font-size: 0.6875rem; font-weight: 800; line-height: 1.25rem; letter-spacing: 0.025em; }"
+    },
+    {
+      "name": "Menu de volume",
+      "kind": "custom",
+      "refersTo": "popover",
+      "description": "Popover flutuante: a única superfície com sombra de elevação.",
+      "html": "<div class=\"ds-pop\" role=\"dialog\" aria-label=\"Volume de Leo\"><strong>Leo</strong><div class=\"ds-pop-row\"><span class=\"ds-pop-label\">Voz</span><div class=\"ds-pop-track\"><span></span></div><output>80%</output></div><small class=\"ds-pop-note\">Só você ouve essa mudança.</small></div>",
+      "css": ".ds-pop { font-family: var(--font-sans, Figtree, ui-sans-serif, system-ui, sans-serif); display: grid; gap: 16px; width: 288px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--popover); color: var(--foreground); box-shadow: 0 8px 24px oklch(0 0 0 / 45%); } .ds-pop-row { display: grid; grid-template-columns: 1fr 40px; gap: 6px 12px; align-items: center; font-size: 0.875rem; } .ds-pop-label { grid-column: 1 / -1; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em; color: var(--muted-foreground); } .ds-pop-track { height: 6px; border-radius: 9999px; background: oklch(0.56 0.19 278 / 20%); overflow: hidden; } .ds-pop-track span { display: block; width: 80%; height: 100%; background: var(--primary); } .ds-pop output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground); } .ds-pop-note { font-size: 0.75rem; color: var(--muted-foreground); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O painel da sala ao vivo",
+    "overview": "O Lobby é um painel que se lê de relance por cima de um jogo em tela cheia: quem está em cada sala, quem está falando, quem está mudo, quem está transmitindo. Tudo acontece num único mundo escuro, porque a cena é noite, quarto com pouca luz e o app numa segunda tela ou no celular. O grafite é quase neutro (matiz 272, croma baixo) e se organiza em degraus de claridade; os painéis se separam por seams de 1px, não por sombra.\n\nA cor é escassa e funcional. Um índigo-violeta marca seleção e ação primária; verde existe só para \"falando\"; vermelho existe só para AO VIVO, mudo, erros e sair. A cor pessoal de cada amigo vem do avatar, derivada do apelido e mantida longe dos matizes de estado, para que identidade nunca pareça status. A densidade é de ferramenta: barras de 48px, linhas compactas, alvos de toque de 44px.",
+    "keyCharacteristics": [
+      "Só escuro (`color-scheme: dark`), grafite em degraus: rail < background < card < popover.",
+      "Seams de 1px no token `border` dividem trilho, palco, chat e barras.",
+      "Sem sombra de elevação, exceto em popovers; anéis (fala, foco) são o único outro uso de box-shadow.",
+      "Acento índigo só para seleção e ação; verde, vermelho e destrutivo só para estado.",
+      "Figtree 400–800, números tabulares em hora, contagens e porcentagens.",
+      "Avatares redondos com matiz do apelido; o anel verde de fala é o gesto assinatura."
+    ],
+    "rules": [
+      {
+        "name": "The Degraus Rule",
+        "body": "Profundidade é claridade: cada superfície sobe um degrau de grafite (rail 0.195, background 0.235, card 0.265, popover 0.29, secondary 0.31). Não se cria superfície nova fora desses degraus.",
+        "section": "colors"
+      },
+      {
+        "name": "The Estado Não Decora Rule",
+        "body": "Verde, vermelho ao vivo e destrutivo aparecem só quando o estado é verdadeiro. Nenhum deles vira cor de marca, ilustração ou ênfase.",
+        "section": "colors"
+      },
+      {
+        "name": "The Matiz do Apelido Rule",
+        "body": "O avatar pinta `oklch(0.52 0.12 h)` com letra `oklch(0.96 0.03 h)`, e o nome no chat usa `oklch(0.82 0.1 h)`, onde `h` vem do hash do apelido sobre [95, 185, 215, 245, 310, 345]. Esses matizes ficam longe de 25, 152 e 278 (vermelho, verde, índigo); nunca acrescente um matiz que se aproxime deles.",
+        "section": "colors"
+      },
+      {
+        "name": "The Número Tabular Rule",
+        "body": "`time` e `output` recebem `tabular-nums` na base; contagens de pessoas também. Números que mudam ao vivo não podem dançar.",
+        "section": "typography"
+      },
+      {
+        "name": "The Seam Não Sombra Rule",
+        "body": "Painéis, barras e cartões se separam por 1px de `border`, nunca por sombra. Se precisa de sombra, é porque flutua.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do subir exatamente um degrau de grafite para cada camada nova (rail, background, card, popover, secondary).",
+      "Do separar regiões com seams de 1px no token `border`.",
+      "Do usar `primary` para preencher ação/seleção e `primary-ink` para texto, traço e foco sobre o grafite.",
+      "Do reservar `speaking` para o anel de fala, `live` para AO VIVO e Sair, `destructive` para mudo e erro.",
+      "Do derivar a cor pessoal do apelido pelos matizes [95, 185, 215, 245, 310, 345] em `oklch(0.52 0.12 h)`.",
+      "Do manter alvos de 44px e a doca fixa embaixo no celular com padding de safe-area.",
+      "Do usar números tabulares em hora, contagens e porcentagens."
+    ],
+    "donts": [
+      "Don't criar tema claro nem superfícies creme; o mundo é só escuro.",
+      "Don't usar sombra em cartões, tiles, barras ou botões; só popovers flutuam.",
+      "Don't usar verde, vermelho ou índigo como cor de avatar, decoração ou ênfase.",
+      "Don't acumular selos vermelhos; um estado, um sinal.",
+      "Don't colocar \"Sair\" junto dos outros controles da doca sem o divisor.",
+      "Don't usar rótulos em maiúsculas acima de títulos; o estilo Label só rotula controles e listas."
+    ]
+  }
+}

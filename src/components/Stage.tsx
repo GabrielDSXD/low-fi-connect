@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Eye,
   Loader2,
   Maximize2,
   Mic,
@@ -9,9 +8,13 @@ import {
   MonitorOff,
   MonitorUp,
   PhoneOff,
+  Settings,
+  Volume2,
 } from "lucide-react";
 import type { Participant } from "@/hooks/useCall";
 import type { Volumes } from "@/components/VolumeMenu";
+import { Avatar } from "@/components/Avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export type Tile = {
   id: string;
@@ -45,123 +48,183 @@ export function Stage(p: Props) {
   const [picked, setPicked] = useState<string | null>(null);
   // Com várias telas, só a escolhida é exibida (e ouvida); por padrão, a primeira.
   const watching = sharers.find((s) => s.id === picked) ?? sharers[0] ?? null;
+  const others = p.tiles.some((t) => !t.isMe);
 
   return (
-    <section
-      aria-label={`Sala ${p.roomName}`}
-      className="rounded-2xl border border-border bg-card p-4"
-    >
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-foreground">{p.roomName}</h2>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={p.onToggleMic} className={btn(!p.micOn)}>
-            {p.micOn ? (
-              <Mic className="size-4" aria-hidden />
-            ) : (
-              <MicOff className="size-4" aria-hidden />
-            )}
-            {p.micOn ? "Silenciar" : "Ativar microfone"}
-          </button>
-          <button type="button" onClick={p.onToggleShare} className={btn(p.sharing)}>
-            {p.sharing ? (
-              <MonitorOff className="size-4" aria-hidden />
-            ) : (
-              <MonitorUp className="size-4" aria-hidden />
-            )}
-            {p.sharing ? "Parar de compartilhar" : "Compartilhar tela"}
-          </button>
-          <button
-            type="button"
-            onClick={p.onLeave}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-destructive transition hover:bg-secondary"
+    <section aria-label={`Sala ${p.roomName}`} className="flex min-h-0 flex-1 flex-col">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+        <Volume2 className="size-5 text-muted-foreground" aria-hidden />
+        <h2 className="font-bold text-foreground">{p.roomName}</h2>
+        <span className="text-sm tabular-nums text-muted-foreground">
+          · {p.tiles.length} {p.tiles.length === 1 ? "pessoa" : "pessoas"}
+        </span>
+      </header>
+
+      <div className="flex flex-1 flex-col overflow-y-auto p-4">
+        {p.sharing && !p.shareAudioOn ? (
+          <p className="mb-4 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            Você está compartilhando sem som. Pare, compartilhe de novo, escolha uma
+            <strong className="text-foreground"> aba do Chrome</strong> e marque
+            <strong className="text-foreground"> “Compartilhar áudio da guia”</strong>.
+          </p>
+        ) : null}
+
+        {sharers.length > 1 ? (
+          <div
+            role="group"
+            aria-label="Escolher qual tela assistir"
+            className="mb-3 flex flex-wrap items-center gap-1.5"
           >
-            <PhoneOff className="size-4" aria-hidden /> Sair da sala
-          </button>
+            <span className="mr-1 text-sm text-muted-foreground">Assistir:</span>
+            {sharers.map((s) => {
+              const on = s.id === watching?.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setPicked(s.id)}
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm font-semibold transition-colors ${
+                    on
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Avatar nick={s.nick} className="size-7 text-xs" /> {s.nick}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {watching ? <ScreenView key={watching.id} participant={watching} /> : null}
+
+        <div className={watching ? "" : "flex flex-1 flex-col sm:justify-center"}>
+          <ul
+            aria-label="Participantes"
+            className={`grid gap-3 ${
+              watching
+                ? "grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]"
+                : "grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] justify-center sm:grid-cols-[repeat(auto-fit,minmax(11rem,16rem))]"
+            }`}
+          >
+            {p.tiles.map((t) => (
+              <li
+                key={t.id}
+                tabIndex={0}
+                title={t.isMe ? undefined : "Botão direito: volume só para você"}
+                onContextMenu={(e) => {
+                  if (t.isMe) return;
+                  e.preventDefault();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  p.onMenu(t.id, e.clientX || r.left, e.clientY || r.bottom);
+                }}
+                className={`relative flex flex-col items-center gap-2 rounded-lg bg-card px-2 transition-colors ${
+                  watching ? "pb-2 pt-7" : "pb-3 pt-10"
+                } ${t.isMe ? "" : "cursor-context-menu hover:bg-secondary"}`}
+              >
+                {/* Quem está sendo assistido já tem o rótulo na própria transmissão */}
+                {t.sharing && t.id !== watching?.id ? (
+                  <span className="absolute left-2 top-2 rounded bg-live px-1.5 text-[0.6875rem] font-extrabold leading-5 tracking-wide text-white">
+                    AO VIVO
+                  </span>
+                ) : null}
+                <Avatar
+                  nick={t.nick}
+                  speaking={t.speaking}
+                  gap="var(--color-card)"
+                  className={watching ? "size-12 text-lg" : "size-20 text-3xl"}
+                />
+                {t.speaking ? <span className="sr-only">falando</span> : null}
+                <span
+                  className={`flex max-w-full items-center gap-1.5 text-sm font-semibold text-foreground ${
+                    watching ? "" : "mt-2"
+                  }`}
+                >
+                  {t.muted ? (
+                    <>
+                      <MicOff className="size-3.5 shrink-0 text-destructive" aria-hidden />
+                      <span className="sr-only">mudo,</span>
+                    </>
+                  ) : null}
+                  <span className="truncate">
+                    {t.nick}
+                    {t.isMe ? " (você)" : ""}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {others ? (
+            <p className={`mt-3 text-xs text-muted-foreground ${watching ? "" : "sm:text-center"}`}>
+              Clique com o botão direito em alguém (ou{" "}
+              <kbd className="rounded border border-border bg-card px-1 font-sans text-[0.6875rem] font-semibold text-foreground">
+                Shift+F10
+              </kbd>
+              ) para ajustar o volume só para você.
+            </p>
+          ) : null}
         </div>
       </div>
-      <p className="mb-3 text-sm text-muted-foreground">
-        Clique com o botão direito em alguém (ou Shift+F10) para ajustar o volume só para você.
-      </p>
 
-      <DevicePicker
-        micId={p.micId}
-        speakerId={p.speakerId}
-        onMic={p.onMic}
-        onSpeaker={p.onSpeaker}
-      />
-
-      {p.sharing && !p.shareAudioOn ? (
-        <p className="mb-3 rounded-xl border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
-          Você está compartilhando sem som. Pare, compartilhe de novo, escolha uma
-          <strong className="text-foreground"> aba do Chrome</strong> e marque
-          <strong className="text-foreground"> “Compartilhar áudio da guia”</strong>.
-        </p>
-      ) : null}
-
-      {sharers.length > 1 ? (
-        <div
-          role="group"
-          aria-label="Escolher qual tela assistir"
-          className="mb-3 flex flex-wrap items-center gap-2"
+      {/* Doca de controles: fixa embaixo; "Sair" isolado dos outros para não ser clicado sem querer */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex shrink-0 items-center justify-center gap-2 border-t border-border bg-rail px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 lg:sticky lg:z-auto lg:pb-3">
+        <DockButton
+          label={p.micOn ? "Silenciar" : "Ativar microfone"}
+          onClick={p.onToggleMic}
+          tone={p.micOn ? "idle" : "alert"}
         >
-          <span className="text-sm text-muted-foreground">Assistir:</span>
-          {sharers.map((s) => (
+          {p.micOn ? (
+            <Mic className="size-5" aria-hidden />
+          ) : (
+            <MicOff className="size-5" aria-hidden />
+          )}
+        </DockButton>
+        <DockButton
+          label={p.sharing ? "Parar de compartilhar" : "Compartilhar tela"}
+          onClick={p.onToggleShare}
+          tone={p.sharing ? "on" : "idle"}
+        >
+          {p.sharing ? (
+            <MonitorOff className="size-5" aria-hidden />
+          ) : (
+            <MonitorUp className="size-5" aria-hidden />
+          )}
+        </DockButton>
+        <Popover>
+          <PopoverTrigger asChild>
             <button
-              key={s.id}
               type="button"
-              aria-pressed={s.id === watching?.id}
-              onClick={() => setPicked(s.id)}
-              className={btn(s.id === watching?.id)}
+              aria-label="Microfone e saída de áudio"
+              title="Microfone e saída de áudio"
+              className={dock("idle")}
             >
-              <Eye className="size-4" aria-hidden /> {s.nick}
+              <Settings className="size-5" aria-hidden />
             </button>
-          ))}
-        </div>
-      ) : null}
-
-      {watching ? <ScreenView key={watching.id} participant={watching} /> : null}
-
-      <ul
-        aria-label="Participantes"
-        className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3"
-      >
-        {p.tiles.map((t) => (
-          <li
-            key={t.id}
-            tabIndex={0}
-            onContextMenu={(e) => {
-              if (t.isMe) return;
-              e.preventDefault();
-              const r = e.currentTarget.getBoundingClientRect();
-              p.onMenu(t.id, e.clientX || r.left, e.clientY || r.bottom);
-            }}
-            className={`rounded-2xl border-2 bg-background px-2 py-4 text-center transition ${
-              t.speaking ? "border-speaking ring-4 ring-speaking/25" : "border-border"
-            } ${t.isMe ? "" : "cursor-context-menu"}`}
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            sideOffset={10}
+            className="w-80 rounded-lg p-4 shadow-[0_8px_24px_oklch(0_0_0/45%)]"
           >
-            <div className="mx-auto mb-1.5 grid size-14 place-items-center rounded-full bg-secondary text-2xl font-extrabold text-primary">
-              {[...t.nick][0]?.toUpperCase()}
-            </div>
-            <div className="break-words font-bold text-foreground">
-              {t.nick}
-              {t.isMe ? " (você)" : ""}
-            </div>
-            {t.speaking ? <span className="sr-only">falando</span> : null}
-            <div className="mt-1 flex min-h-6 flex-wrap justify-center gap-1">
-              {t.muted ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 text-xs font-bold text-destructive">
-                  <MicOff className="size-3" aria-hidden /> Mudo
-                </span>
-              ) : null}
-              {t.sharing ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 text-xs font-bold text-destructive">
-                  <MonitorUp className="size-3" aria-hidden /> Compartilhando
-                </span>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
+            <DevicePicker
+              micId={p.micId}
+              speakerId={p.speakerId}
+              onMic={p.onMic}
+              onSpeaker={p.onSpeaker}
+            />
+          </PopoverContent>
+        </Popover>
+        <span aria-hidden className="mx-2 h-8 w-px bg-border" />
+        <button
+          type="button"
+          onClick={p.onLeave}
+          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-live px-5 text-sm font-bold text-white transition-[filter] hover:brightness-110"
+        >
+          <PhoneOff className="size-5" aria-hidden /> Sair
+        </button>
+      </div>
 
       {/* Áudio remoto: voz e áudio da tela com volumes independentes; tela não escolhida fica muda */}
       {p.participants.map((x) => {
@@ -182,12 +245,33 @@ export function Stage(p: Props) {
   );
 }
 
-const btn = (on: boolean) =>
-  `inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition hover:opacity-90 ${
-    on
-      ? "border-destructive bg-destructive/10 text-destructive"
-      : "border-border bg-card text-foreground hover:bg-secondary"
+type Tone = "idle" | "on" | "alert";
+const dock = (tone: Tone) =>
+  `grid size-11 place-items-center rounded-full transition-colors ${
+    tone === "on"
+      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+      : tone === "alert"
+        ? "bg-destructive/15 text-destructive hover:bg-destructive/25"
+        : "bg-secondary text-foreground hover:bg-secondary/70"
   }`;
+
+function DockButton({
+  label,
+  tone,
+  onClick,
+  children,
+}: {
+  label: string;
+  tone: Tone;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} title={label} className={dock(tone)}>
+      {children}
+    </button>
+  );
+}
 
 /** Vídeo da tela de outra pessoa, com botão (e duplo clique) de tela cheia. */
 function ScreenView({ participant }: { participant: Participant }) {
@@ -228,7 +312,7 @@ function ScreenView({ participant }: { participant: Participant }) {
   return (
     <div
       ref={boxRef}
-      className="relative mb-3 grid place-items-center overflow-hidden rounded-2xl bg-black"
+      className="group relative mb-3 grid place-items-center overflow-hidden rounded-lg bg-black"
     >
       <video
         ref={videoRef}
@@ -237,25 +321,29 @@ function ScreenView({ participant }: { participant: Participant }) {
         muted
         aria-label={`Tela de ${participant.nick}`}
         onDoubleClick={toggleFull}
-        className={`block w-full object-contain ${full ? "h-full" : "max-h-[60dvh]"}`}
+        className={`block w-full object-contain ${full ? "h-full" : "max-h-[62dvh]"}`}
       />
-      <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-card/90 px-2.5 py-0.5 text-xs font-bold text-destructive">
-        <MonitorUp className="size-3" aria-hidden /> Tela de {participant.nick}
+      <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded bg-rail/85 px-2 py-0.5 text-sm font-semibold text-foreground">
+        <span className="rounded bg-live px-1 text-[0.625rem] font-extrabold leading-4 tracking-wide text-white">
+          AO VIVO
+        </span>
+        {participant.nick}
       </span>
       <button
         type="button"
         onClick={toggleFull}
-        className="absolute right-2 top-2 inline-flex min-h-9 items-center gap-2 rounded-xl border border-border bg-card/90 px-3 text-sm font-semibold text-foreground backdrop-blur transition hover:opacity-80"
+        aria-label={full ? "Sair da tela cheia" : "Tela cheia"}
+        title={full ? "Sair da tela cheia" : "Tela cheia"}
+        className="absolute right-2 top-2 grid size-9 place-items-center rounded-md bg-rail/85 text-foreground transition-colors hover:bg-rail"
       >
         {full ? (
           <Minimize2 className="size-4" aria-hidden />
         ) : (
           <Maximize2 className="size-4" aria-hidden />
         )}
-        {full ? "Sair da tela cheia" : "Tela cheia"}
       </button>
       {participant.videoStalled || participant.connection === "disconnected" ? (
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-xs text-muted-foreground backdrop-blur-sm">
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-rail/70 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden /> reconectando a transmissão…
         </div>
       ) : null}
@@ -293,12 +381,12 @@ function DevicePicker(p: {
   ) => {
     const list = devices.filter((d) => d.kind === kind && !isAlias(d));
     return (
-      <label className="grid min-w-0 flex-1 basis-56 gap-1 text-sm font-medium text-foreground">
+      <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
         {label}
         <select
           value={list.some((d) => d.deviceId === id) ? id : ""}
           onChange={(e) => onPick(e.target.value)}
-          className="min-h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/40"
+          className="min-h-10 min-w-0 rounded-md border border-border bg-input px-2.5 text-sm font-medium normal-case tracking-normal text-foreground outline-none transition-colors focus:border-primary-ink"
         >
           <option value="">Padrão do sistema</option>
           {list.map((d, i) => (
@@ -312,7 +400,7 @@ function DevicePicker(p: {
   };
 
   return (
-    <div className="mb-3 flex flex-wrap gap-3">
+    <div className="grid gap-3">
       {pick("audioinput", p.micId, "Microfone", "Microfone", p.onMic)}
       {canPickOutput()
         ? pick("audiooutput", p.speakerId, "Saída de áudio", "Saída", p.onSpeaker)

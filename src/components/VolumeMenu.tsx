@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Slider } from "@/components/ui/slider";
+import { Avatar } from "@/components/Avatar";
 
 export type Volumes = { voice: number; screen: number };
 
@@ -48,7 +49,10 @@ export function VolumeMenu({ nick, x, y, sharing, volumes, onChange, onClose }: 
 
   const row = (label: string, key: keyof Volumes) => (
     <div className="grid gap-1.5 text-sm">
-      <span id={`vol-${key}`} className="text-foreground">
+      <span
+        id={`vol-${key}`}
+        className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
+      >
         {label}
       </span>
       <div className="flex items-center gap-3">
@@ -73,12 +77,15 @@ export function VolumeMenu({ nick, x, y, sharing, volumes, onChange, onClose }: 
       role="dialog"
       aria-label={`Volume de ${nick}`}
       style={{ left: pos.left, top: pos.top }}
-      className="fixed z-50 grid w-64 gap-3 rounded-2xl border border-border bg-card p-4 shadow-2xl"
+      className="fixed z-50 grid w-72 gap-4 rounded-lg border border-border bg-popover p-4 shadow-[0_8px_24px_oklch(0_0_0/45%)]"
     >
-      <strong className="text-foreground">{nick}</strong>
+      <div className="flex items-center gap-2.5">
+        <Avatar nick={nick} className="size-8 text-sm" />
+        <strong className="truncate text-foreground">{nick}</strong>
+      </div>
       {row("Voz", "voice")}
       {sharing ? row("Compartilhamento de tela", "screen") : null}
-      <small className="text-muted-foreground">Só você ouve essa mudança.</small>
+      <small className="text-xs text-muted-foreground">Só você ouve essa mudança.</small>
     </div>
   );
 }

@@ -30,6 +30,10 @@ type Props = {
   sharing: boolean;
   shareAudioOn: boolean;
   volumes: (nick: string) => Volumes;
+  micId: string;
+  speakerId: string;
+  onMic: (deviceId: string) => void;
+  onSpeaker: (deviceId: string) => void;
   onToggleMic: () => void;
   onToggleShare: () => void;
   onLeave: () => void;
@@ -78,6 +82,13 @@ export function Stage(p: Props) {
       <p className="mb-3 text-sm text-muted-foreground">
         Clique com o botão direito em alguém (ou Shift+F10) para ajustar o volume só para você.
       </p>
+
+      <DevicePicker
+        micId={p.micId}
+        speakerId={p.speakerId}
+        onMic={p.onMic}
+        onSpeaker={p.onSpeaker}
+      />
 
       {p.sharing && !p.shareAudioOn ? (
         <p className="mb-3 rounded-xl border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
@@ -157,8 +168,13 @@ export function Stage(p: Props) {
         const v = p.volumes(x.nick);
         return (
           <div key={x.id} className="hidden">
-            <RemoteAudio stream={x.micStream} volume={v.voice} />
-            <RemoteAudio stream={x.screenStream} volume={v.screen} muted={watching?.id !== x.id} />
+            <RemoteAudio stream={x.micStream} volume={v.voice} sinkId={p.speakerId} />
+            <RemoteAudio
+              stream={x.screenStream}
+              volume={v.screen}
+              sinkId={p.speakerId}
+              muted={watching?.id !== x.id}
+            />
           </div>
         );
       })}
@@ -247,16 +263,82 @@ function ScreenView({ participant }: { participant: Participant }) {
   );
 }
 
+// Escolher a saída de áudio: Chrome/Edge/Firefox sim, Safari não (aí o seletor some).
+const canPickOutput = () =>
+  typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+// Entradas-apelido do Chrome; o "Padrão do sistema" já cobre.
+const isAlias = (d: MediaDeviceInfo) => d.deviceId === "default" || d.deviceId === "communications";
+
+function DevicePicker(p: {
+  micId: string;
+  speakerId: string;
+  onMic: (id: string) => void;
+  onSpeaker: (id: string) => void;
+}) {
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  useEffect(() => {
+    const md = navigator.mediaDevices;
+    const load = () => void md.enumerateDevices().then(setDevices, () => {});
+    load();
+    md.addEventListener("devicechange", load);
+    return () => md.removeEventListener("devicechange", load);
+  }, []);
+
+  const pick = (
+    kind: MediaDeviceKind,
+    id: string,
+    label: string,
+    name: string,
+    onPick: (id: string) => void,
+  ) => {
+    const list = devices.filter((d) => d.kind === kind && !isAlias(d));
+    return (
+      <label className="grid min-w-0 flex-1 basis-56 gap-1 text-sm font-medium text-foreground">
+        {label}
+        <select
+          value={list.some((d) => d.deviceId === id) ? id : ""}
+          onChange={(e) => onPick(e.target.value)}
+          className="min-h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/40"
+        >
+          <option value="">Padrão do sistema</option>
+          {list.map((d, i) => (
+            <option key={d.deviceId} value={d.deviceId}>
+              {d.label || `${name} ${i + 1}`}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  };
+
+  return (
+    <div className="mb-3 flex flex-wrap gap-3">
+      {pick("audioinput", p.micId, "Microfone", "Microfone", p.onMic)}
+      {canPickOutput()
+        ? pick("audiooutput", p.speakerId, "Saída de áudio", "Saída", p.onSpeaker)
+        : null}
+    </div>
+  );
+}
+
 function RemoteAudio({
   stream,
   volume,
+  sinkId,
   muted,
 }: {
   stream: MediaStream;
   volume: number;
+  sinkId: string;
   muted?: boolean;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const el = ref.current as
+      (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    // Dispositivo que sumiu: o navegador rejeita e o áudio segue na saída atual.
+    void el?.setSinkId?.(sinkId).catch(() => {});
+  }, [sinkId]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

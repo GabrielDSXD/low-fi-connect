@@ -63,6 +63,10 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const [shareAudioOn, setShareAudioOn] = useState(false);
   const [speaking, setSpeaking] = useState<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
+  // Dispositivos escolhidos ("" = padrão do sistema), lembrados neste navegador.
+  const [micId, setMicId] = useState("");
+  const [speakerId, setSpeakerId] = useState("");
+  const micIdRef = useRef("");
 
   const meRef = useRef("");
   meRef.current = me?.id ?? "";
@@ -401,6 +405,72 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   }, [startShare, stopShare]);
 
   // ---- microfone ----
+  useEffect(() => {
+    try {
+      micIdRef.current = localStorage.getItem("micId") ?? "";
+      setMicId(micIdRef.current);
+      setSpeakerId(localStorage.getItem("speakerId") ?? "");
+    } catch {
+      /* sem storage: fica no padrão */
+    }
+  }, []);
+
+  // `ideal`: se o microfone salvo sumiu, usa outro em vez de falhar.
+  const getMic = useCallback(
+    () =>
+      navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          ...(micIdRef.current ? { deviceId: { ideal: micIdRef.current } } : {}),
+        },
+      }),
+    [],
+  );
+
+  const changeMic = useCallback(
+    async (id: string) => {
+      micIdRef.current = id;
+      setMicId(id);
+      try {
+        localStorage.setItem("micId", id);
+      } catch {
+        /* noop */
+      }
+      const old = micStreamRef.current;
+      if (!old) return; // fora da sala: vale na próxima entrada
+      try {
+        const stream = await getMic();
+        // Saiu da sala (ou trocou de novo) enquanto abria o microfone.
+        if (micStreamRef.current !== old) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const track = stream.getAudioTracks()[0] ?? null;
+        if (track) track.enabled = micOnRef.current;
+        // Transceiver 0 é o do microfone nos dois lados (ver createPeer).
+        for (const [, p] of peersRef.current) {
+          await p.pc.getTransceivers()[0]?.sender.replaceTrack(track);
+        }
+        micStreamRef.current = stream;
+        old.getTracks().forEach((t) => t.stop());
+        startMeter(stream);
+      } catch {
+        notify("Não foi possível usar esse microfone.");
+      }
+    },
+    [getMic, notify, startMeter],
+  );
+
+  const changeSpeaker = useCallback((id: string) => {
+    setSpeakerId(id);
+    try {
+      localStorage.setItem("speakerId", id);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
   const toggleMic = useCallback(() => {
     const tracks = micStreamRef.current?.getAudioTracks() ?? [];
     if (!tracks.length) return;
@@ -438,9 +508,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       try {
         if (!micStreamRef.current) {
           try {
-            micStreamRef.current = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true },
-            });
+            micStreamRef.current = await getMic();
           } catch (err) {
             notify(
               (err as DOMException)?.name === "NotFoundError"
@@ -490,7 +558,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         joiningRef.current = false;
       }
     },
-    [handleSignal, markSpeaking, me, notify, startMeter, teardown, update],
+    [getMic, handleSignal, markSpeaking, me, notify, startMeter, teardown, update],
   );
 
   const leave = useCallback(() => {
@@ -589,6 +657,10 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     localScreen,
     shareAudioOn,
     speaking,
+    micId,
+    speakerId,
+    changeMic,
+    changeSpeaker,
     join,
     leave,
     toggleMic,

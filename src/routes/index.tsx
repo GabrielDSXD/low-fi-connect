@@ -159,6 +159,10 @@ function Index() {
             sharing={call.sharing}
             shareAudioOn={call.shareAudioOn}
             volumes={volumesOf}
+            micId={call.micId}
+            speakerId={call.speakerId}
+            onMic={(id) => void call.changeMic(id)}
+            onSpeaker={call.changeSpeaker}
             onToggleMic={call.toggleMic}
             onToggleShare={call.toggleShare}
             onLeave={call.leave}

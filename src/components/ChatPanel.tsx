@@ -17,7 +17,9 @@ export function ChatPanel({ messages, onSend, onLimit }: Props) {
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    // Desconta a mensagem recém-chegada, senão uma mensagem longa impede o auto-scroll.
+    const last = el.lastElementChild?.clientHeight ?? 0;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight - last < 80;
     if (near || messages[messages.length - 1]?.mine) el.scrollTop = el.scrollHeight;
   }, [messages]);
 

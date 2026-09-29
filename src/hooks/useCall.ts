@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { beep } from "@/lib/sfx";
-import type { Member } from "@/hooks/useLobby";
+import { freshChannel, type Member } from "@/hooks/useLobby";
 
 export type Participant = {
   id: string;
@@ -251,6 +251,9 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const handleSignal = useCallback(
     async (payload: SignalPayload) => {
       if (payload.to !== meRef.current || payload.from === meRef.current) return;
+      // Só uma oferta abre conexão nova; candidatos/respostas atrasados de quem já saiu
+      // recriariam um peer fantasma.
+      if (!peersRef.current.has(payload.from) && payload.data.description?.type !== "offer") return;
       const known = membersRef.current.find((m) => m.id === payload.from);
       const state = createPeer(payload.from, known?.nick ?? "…");
       const { pc } = state;
@@ -363,6 +366,11 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         systemAudio: "exclude",
         selfBrowserSurface: "include",
       } as DisplayMediaStreamOptions);
+      // Saiu da sala (ou já compartilhou) enquanto o seletor estava aberto.
+      if (!roomRef.current || screenStreamRef.current) {
+        screen.getTracks().forEach((t) => t.stop());
+        return;
+      }
       screenStreamRef.current = screen;
       setLocalScreen(screen);
       setSharing(true);
@@ -449,7 +457,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         micOnRef.current = true;
         setMicOn(true);
 
-        const channel = supabase.channel(`room:${room}`, {
+        const channel = await freshChannel(`room:${room}`, {
           config: { broadcast: { self: false } },
         });
         channelRef.current = channel;
@@ -473,7 +481,10 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         update({ room, muted: false, sharing: false });
         beep("in");
       } catch {
-        teardown(true);
+        // Fora de qualquer sala: solta o microfone e corrige a presença (troca de sala
+        // que falhou ainda mostraria a sala antiga).
+        teardown(false);
+        update({ room: null, muted: false, sharing: false });
         notify("Não foi possível entrar na sala. Tente de novo.");
       } finally {
         joiningRef.current = false;
@@ -526,6 +537,11 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     }
     sync();
   }, [members, roomId, me, reconnecting, createPeer, closePeer, sync]);
+
+  // Perdeu o lobby (ex.: apelido tomado): a tela volta ao login, então sai da chamada.
+  useEffect(() => {
+    if (!me && roomRef.current) teardown(false);
+  }, [me, teardown]);
 
   // Liberar tudo ao desmontar.
   useEffect(

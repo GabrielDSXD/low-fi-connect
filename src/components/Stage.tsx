@@ -262,7 +262,9 @@ function RemoteAudio({
     if (!el) return;
     if (el.srcObject !== stream) el.srcObject = stream;
     // Faixas que chegam depois (áudio da tela) podem deixar o elemento pausado.
-    const resume = () => void el.play().catch(() => {});
+    const resume = () => {
+      if (el.paused) void el.play().catch(() => {});
+    };
     resume();
     el.addEventListener("pause", resume);
     document.addEventListener("click", resume);

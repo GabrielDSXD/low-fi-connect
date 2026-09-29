@@ -25,6 +25,16 @@ export type ChatMessage = {
 export const NICK_TAKEN = "Esse apelido já está em uso. Escolha outro.";
 const sameNick = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
+/**
+ * supabase.channel() reaproveita um canal com o mesmo tópico, inclusive um que ainda está
+ * saindo (sair e voltar rápido); aí o subscribe falharia. Espera a saída antes de criar.
+ */
+export async function freshChannel(name: string, opts: Parameters<typeof supabase.channel>[1]) {
+  const stale = supabase.getChannels().filter((c) => c.topic === `realtime:${name}`);
+  await Promise.all(stale.map((c) => supabase.removeChannel(c)));
+  return supabase.channel(name, opts);
+}
+
 function readMembers(channel: RealtimeChannel): Member[] {
   const byId = new Map<string, Member>();
   for (const entries of Object.values(channel.presenceState<Member>())) {
@@ -82,7 +92,7 @@ export function useLobby() {
         sharing: false,
       };
       selfRef.current = self;
-      const channel = supabase.channel("lobby", {
+      const channel = await freshChannel("lobby", {
         config: { presence: { key: self.id }, broadcast: { self: false } },
       });
       channelRef.current = channel;
@@ -110,9 +120,18 @@ export function useLobby() {
       });
 
       channel.on("broadcast", { event: "chat" }, ({ payload }) => {
+        // Vem de outros clientes: valida e limita como no envio.
         const msg = payload as Omit<ChatMessage, "mine">;
-        if (!msg?.text || !msg?.id) return;
-        setMessages((prev) => [...prev, { ...msg, mine: false }].slice(-200));
+        if (typeof msg?.text !== "string" || typeof msg?.id !== "string" || !msg.text) return;
+        const clean = {
+          id: msg.id,
+          from: String(msg.from),
+          nick: String(msg.nick).slice(0, 20),
+          text: msg.text.slice(0, 500),
+          at: Number(msg.at) || Date.now(),
+          mine: false,
+        };
+        setMessages((prev) => [...prev, clean].slice(-200));
       });
 
       channel.subscribe(async (status) => {

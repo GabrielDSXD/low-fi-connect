@@ -204,6 +204,7 @@ function Index() {
             onToggleShare={call.toggleShare}
             onLeave={call.leave}
             onMenu={openMenu}
+            onWatch={call.watch}
           />
         ) : (
           <section aria-labelledby="pick-room" className="flex flex-1 flex-col">

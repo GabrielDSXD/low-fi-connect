@@ -41,6 +41,8 @@ type Props = {
   onToggleShare: () => void;
   onLeave: () => void;
   onMenu: (id: string, x: number, y: number) => void;
+  /** Tela que estou assistindo (null = nenhuma) */
+  onWatch: (id: string | null) => void;
 };
 
 export function Stage(p: Props) {
@@ -49,6 +51,13 @@ export function Stage(p: Props) {
   // Com várias telas, só a escolhida é exibida (e ouvida); por padrão, a primeira.
   const watching = sharers.find((s) => s.id === picked) ?? sharers[0] ?? null;
   const others = p.tiles.some((t) => !t.isMe);
+
+  // Reenvia também quando surge uma tela nova: quem começou agora precisa saber que não é a vista.
+  const sharerKey = sharers.map((s) => s.id).join();
+  const { onWatch } = p;
+  useEffect(() => {
+    onWatch(watching?.id ?? null);
+  }, [onWatch, watching?.id, sharerKey]);
 
   return (
     <section aria-label={`Sala ${p.roomName}`} className="flex min-h-0 flex-1 flex-col">

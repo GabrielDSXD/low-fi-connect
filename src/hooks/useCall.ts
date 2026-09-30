@@ -22,6 +22,66 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
 
+// Tela: teto por espectador (a malha multiplica o upload de quem transmite).
+const SCREEN_VIDEO: RTCRtpEncodingParameters = { maxBitrate: 4_000_000, maxFramerate: 30 };
+const SCREEN_AUDIO_BITRATE = 128_000;
+
+/**
+ * Opus do áudio da tela (3ª m-line, ordem fixa dos transceivers) em estéreo e com bitrate
+ * de música. Cada lado pede isso no próprio SDP, porque quem envia segue o que o outro aceita.
+ */
+function musicOpus(sdp: string) {
+  const parts = sdp.split(/(?=^m=)/m); // [cabeçalho, mic, vídeo, áudio da tela]
+  const sec = parts[3];
+  const pt = sec?.startsWith("m=audio") ? sec.match(/a=rtpmap:(\d+) opus\/48000\/2/i)?.[1] : null;
+  if (!sec || !pt) return sdp;
+  parts[3] = sec.replace(new RegExp(`a=fmtp:${pt} [^\\r\\n]*`), (line) =>
+    line.includes("stereo=1")
+      ? line
+      : `${line};stereo=1;sprop-stereo=1;maxaveragebitrate=${SCREEN_AUDIO_BITRATE}`,
+  );
+  return parts.join("");
+}
+
+async function setLocal(pc: RTCPeerConnection) {
+  const desc =
+    pc.signalingState === "have-remote-offer" ? await pc.createAnswer() : await pc.createOffer();
+  await pc.setLocalDescription({ type: desc.type, sdp: musicOpus(desc.sdp ?? "") });
+}
+
+// setParameters não aceita chamadas sobrepostas no mesmo sender: enfileira.
+const tuneQueue = new WeakMap<RTCRtpSender, Promise<void>>();
+
+/** Liga/desliga o envio de um sender da tela e aplica os limites. */
+function tuneSender(
+  sender: RTCRtpSender | null,
+  active: boolean,
+  limits: RTCRtpEncodingParameters,
+  framerateFirst: boolean,
+) {
+  if (!sender) return;
+  const run = async () => {
+    const params = sender.getParameters() as RTCRtpSendParameters & {
+      degradationPreference?: string;
+    };
+    const enc = params.encodings?.[0];
+    if (!enc) return; // ainda não negociado: reaplica ao conectar
+    Object.assign(enc, limits, { active });
+    if (framerateFirst) params.degradationPreference = "maintain-framerate";
+    try {
+      await sender.setParameters(params);
+    } catch {
+      // Navegador sem degradationPreference: aplica o resto (o contentHint já prioriza fps).
+      delete params.degradationPreference;
+      await sender.setParameters(params);
+    }
+  };
+  const next = (tuneQueue.get(sender) ?? Promise.resolve())
+    .then(run)
+    .catch((err) => console.warn("setParameters error", err));
+  tuneQueue.set(sender, next);
+}
+
 type PeerState = {
   pc: RTCPeerConnection;
   nick: string;
@@ -88,6 +148,20 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   notifyRef.current = notify;
 
   const sync = useCallback(() => setVersion((v) => v + 1), []);
+
+  // Quem cada pessoa está assistindo (avisos "watch"), e quem eu estou assistindo.
+  const watchRef = useRef(new Map<string, string | null>());
+  const watchingRef = useRef<string | null>(null);
+
+  /** Só manda a tela para quem está assistindo a minha (ou ainda não disse o que assiste). */
+  const tunePeer = useCallback((id: string) => {
+    const p = peersRef.current.get(id);
+    if (!p || !screenStreamRef.current) return;
+    const w = watchRef.current.get(id);
+    const active = w == null || w === meRef.current;
+    tuneSender(p.videoSender, active, SCREEN_VIDEO, true);
+    tuneSender(p.screenAudioSender, active, { maxBitrate: SCREEN_AUDIO_BITRATE }, false);
+  }, []);
 
   const markSpeaking = useCallback((id: string, on: boolean) => {
     setSpeaking((prev) => {
@@ -169,7 +243,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       pc.onnegotiationneeded = async () => {
         try {
           state.makingOffer = true;
-          await pc.setLocalDescription();
+          await setLocal(pc);
           sendSignal(id, { description: pc.localDescription! });
         } catch (err) {
           console.error("negotiation error", err);
@@ -225,9 +299,10 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
           notifyRef.current(
             `Não foi possível conectar com ${state.nick}. A rede pode estar bloqueando a chamada.`,
           );
-        } else if (s === "connected" && state.recoverTimer) {
-          clearTimeout(state.recoverTimer);
+        } else if (s === "connected") {
+          if (state.recoverTimer) clearTimeout(state.recoverTimer);
           state.recoverTimer = null;
+          tunePeer(id); // parâmetros só existem depois de negociar
         }
         sync();
       };
@@ -235,7 +310,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       sync();
       return state;
     },
-    [sendSignal, sync],
+    [sendSignal, sync, tunePeer],
   );
 
   /** Quem responde: usa os 3 transceivers criados pela oferta e passa a enviar por eles. */
@@ -281,7 +356,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
 
           if (description.type === "offer") {
             await attachTransceivers(state);
-            await pc.setLocalDescription();
+            await setLocal(pc);
             sendSignal(payload.from, { description: pc.localDescription! });
           }
         } else if (candidate) {
@@ -363,7 +438,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     if (!roomRef.current) return;
     try {
       const screen = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 },
+        // 1080p30 no máximo: acima disso só pesa na codificação e no upload.
+        video: { frameRate: { ideal: 30, max: 30 }, height: { max: 1080 } },
         // Sem processamento de voz: o áudio da tela é música/vídeo, não fala.
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         // Só o som do que foi compartilhado (aba/janela), nunca o áudio geral do computador.
@@ -381,12 +457,14 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       update({ sharing: true });
       const video = screen.getVideoTracks()[0] ?? null;
       const audio = screen.getAudioTracks()[0] ?? null;
-      if (video) video.contentHint = "detail";
+      // "motion": sob rede apertada, perde resolução antes de perder fluidez (jogo, vídeo).
+      if (video) video.contentHint = "motion";
       if (audio) audio.contentHint = "music";
       setShareAudioOn(!!audio);
-      for (const [, p] of peersRef.current) {
+      for (const [id, p] of peersRef.current) {
         await p.videoSender?.replaceTrack(video);
         await p.screenAudioSender?.replaceTrack(audio);
+        tunePeer(id);
       }
       video?.addEventListener("ended", () => stopShare()); // botão "parar" do navegador
       audio?.addEventListener("ended", () => setShareAudioOn(false));
@@ -397,7 +475,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
           : "Não foi possível compartilhar a tela neste dispositivo.",
       );
     }
-  }, [notify, stopShare, update]);
+  }, [notify, stopShare, tunePeer, update]);
 
   const toggleShare = useCallback(() => {
     if (screenStreamRef.current) stopShare();
@@ -495,6 +573,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       }
       roomRef.current = null;
       prevIdsRef.current = null;
+      watchRef.current.clear();
+      watchingRef.current = null;
       setSpeaking(new Set());
       setRoomId(null);
     },
@@ -536,6 +616,12 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
           const p = payload as { id?: string; on?: boolean };
           if (p?.id) markSpeaking(p.id, !!p.on);
         });
+        channel.on("broadcast", { event: "watch" }, ({ payload }) => {
+          const p = payload as { id?: string; watching?: string | null };
+          if (typeof p?.id !== "string") return;
+          watchRef.current.set(p.id, typeof p.watching === "string" ? p.watching : null);
+          tunePeer(p.id);
+        });
         await new Promise<void>((resolve, reject) => {
           channel.subscribe((status) => {
             if (status === "SUBSCRIBED") resolve();
@@ -558,8 +644,18 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         joiningRef.current = false;
       }
     },
-    [getMic, handleSignal, markSpeaking, me, notify, startMeter, teardown, update],
+    [getMic, handleSignal, markSpeaking, me, notify, startMeter, teardown, tunePeer, update],
   );
+
+  /** Avisa a sala qual tela estou assistindo; quem transmite para de mandar para mim a outra. */
+  const watch = useCallback((id: string | null) => {
+    watchingRef.current = id;
+    void channelRef.current?.send({
+      type: "broadcast",
+      event: "watch",
+      payload: { id: meRef.current, watching: id },
+    });
+  }, []);
 
   const leave = useCallback(() => {
     teardown(false);
@@ -665,5 +761,6 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     leave,
     toggleMic,
     toggleShare,
+    watch,
   };
 }

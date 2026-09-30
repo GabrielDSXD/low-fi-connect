@@ -144,6 +144,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     null,
   );
   const prevIdsRef = useRef<Set<string> | null>(null);
+  const prevSharingRef = useRef<Set<string>>(new Set());
   const notifyRef = useRef(notify);
   notifyRef.current = notify;
 
@@ -556,6 +557,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     tracks.forEach((t) => (t.enabled = next));
     micOnRef.current = next;
     setMicOn(next);
+    beep(next ? "unmute" : "mute"); // só para mim
     if (roomRef.current) update({ muted: !next });
   }, [update]);
 
@@ -573,6 +575,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       }
       roomRef.current = null;
       prevIdsRef.current = null;
+      prevSharingRef.current = new Set();
       watchRef.current.clear();
       watchingRef.current = null;
       setSpeaking(new Set());
@@ -693,11 +696,18 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     // Sons só depois que a minha própria presença na sala chegou (evita apitar na entrada).
     if (ids.has(me.id)) {
       const prev = prevIdsRef.current;
+      const sharingNow = new Set(inRoom.filter((m) => m.sharing).map((m) => m.id));
       if (prev) {
-        if ([...ids].some((id) => !prev.has(id))) beep("in");
+        // Tela: só quem já estava na sala (entrar compartilhando toca o som de entrada).
+        const stayed = [...ids].filter((id) => prev.has(id));
+        const was = prevSharingRef.current;
+        if (stayed.some((id) => sharingNow.has(id) && !was.has(id))) beep("shareOn");
+        else if (stayed.some((id) => !sharingNow.has(id) && was.has(id))) beep("shareOff");
+        else if ([...ids].some((id) => !prev.has(id))) beep("in");
         else if ([...prev].some((id) => !ids.has(id))) beep("out");
       }
       prevIdsRef.current = ids;
+      prevSharingRef.current = sharingNow;
     }
     sync();
   }, [members, roomId, me, reconnecting, createPeer, closePeer, sync]);

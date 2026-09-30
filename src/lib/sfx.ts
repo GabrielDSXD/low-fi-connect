@@ -8,6 +8,26 @@ const SOUNDS = {
     [784, 0],
     [523, 0.09],
   ],
+  // Mudo/desmudo: mais grave e curto que entrar/sair, para não confundir.
+  mute: [
+    [392, 0],
+    [262, 0.07],
+  ],
+  unmute: [
+    [262, 0],
+    [392, 0.07],
+  ],
+  // Tela: três notas, para se destacar dos bipes de entrada/saída.
+  shareOn: [
+    [523, 0],
+    [659, 0.08],
+    [784, 0.16],
+  ],
+  shareOff: [
+    [784, 0],
+    [659, 0.08],
+    [523, 0.16],
+  ],
 } as const;
 
 let ctx: AudioContext | null = null;

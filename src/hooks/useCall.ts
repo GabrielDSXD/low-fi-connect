@@ -41,6 +41,55 @@ const captureConstraints = (q: ScreenQuality) => ({
   height: { max: q.height },
 });
 
+export type NoiseMode = "standard" | "ai";
+
+// Microfones processados pelo modelo de IA: o que precisa ser desligado junto com o stream.
+const micCleanups = new WeakMap<MediaStream, () => void>();
+
+/** Para o microfone e o que estiver processando ele (modelo de IA). */
+function stopMic(stream: MediaStream | null) {
+  if (!stream) return;
+  stream.getTracks().forEach((t) => t.stop());
+  micCleanups.get(stream)?.();
+  micCleanups.delete(stream);
+}
+
+let gtcrnWasm: Promise<ArrayBuffer> | null = null;
+
+/**
+ * Supressão "IA": GTCRN (rede neural de realce de voz) num AudioWorklet entre o microfone e a
+ * chamada. Medido aqui: tira ~40 dB de ruído de fundo e de teclado sem mexer na voz (o
+ * RNNoise, testado antes, tirava só 4 a 6 dB). Carregado só quando usado: a lib estende
+ * AudioWorkletNode e quebraria a renderização no servidor.
+ */
+async function withNoiseAi(raw: MediaStream) {
+  const [lib, worklet, wasm] = await Promise.all([
+    import("@sapphi-red/web-noise-suppressor"),
+    import("@sapphi-red/web-noise-suppressor/gtcrnWorklet.js?url"),
+    import("@sapphi-red/web-noise-suppressor/gtcrn.wasm?url"),
+  ]);
+  gtcrnWasm ??= lib.loadGtcrn({ url: wasm.default });
+  const ctx = new AudioContext({ sampleRate: 48_000 }); // o GTCRN roda nativo em 48 kHz (ou 16)
+  try {
+    const wasmBinary = await gtcrnWasm;
+    await ctx.audioWorklet.addModule(worklet.default);
+    const node = new lib.GtcrnWorkletNode(ctx, { wasmBinary, maxChannels: 1 });
+    const dest = ctx.createMediaStreamDestination();
+    ctx.createMediaStreamSource(raw).connect(node).connect(dest);
+    void ctx.resume();
+    micCleanups.set(dest.stream, () => {
+      node.destroy();
+      void ctx.close();
+      raw.getTracks().forEach((t) => t.stop());
+    });
+    return dest.stream;
+  } catch (err) {
+    gtcrnWasm = null;
+    void ctx.close();
+    throw err;
+  }
+}
+
 function readQuality(): ScreenQuality {
   try {
     const q = JSON.parse(localStorage.getItem("screenQuality") ?? "null") as ScreenQuality | null;
@@ -160,6 +209,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const [micId, setMicId] = useState("");
   const [speakerId, setSpeakerId] = useState("");
   const micIdRef = useRef("");
+  const [noiseMode, setNoiseMode] = useState<NoiseMode>("standard");
+  const noiseRef = useRef<NoiseMode>("standard");
 
   const meRef = useRef("");
   meRef.current = me?.id ?? "";
@@ -428,8 +479,17 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     clearInterval(meterRef.current.timer);
     void meterRef.current.ctx.close();
     meterRef.current = null;
+    // Parar no meio de uma fala (troca de microfone/supressão) deixava o anel preso aceso.
+    if (speakingRef.current) {
+      markSpeaking(meRef.current, false);
+      void channelRef.current?.send({
+        type: "broadcast",
+        event: "speaking",
+        payload: { id: meRef.current, on: false },
+      });
+    }
     speakingRef.current = false;
-  }, []);
+  }, [markSpeaking]);
 
   const startMeter = useCallback(
     (stream: MediaStream) => {
@@ -618,6 +678,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     setScreenQuality(qualityRef.current);
     try {
       micIdRef.current = localStorage.getItem("micId") ?? "";
+      noiseRef.current = localStorage.getItem("noiseMode") === "ai" ? "ai" : "standard";
+      setNoiseMode(noiseRef.current);
       setMicId(micIdRef.current);
       setSpeakerId(localStorage.getItem("speakerId") ?? "");
     } catch {
@@ -626,17 +688,58 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   }, []);
 
   // `ideal`: se o microfone salvo sumiu, usa outro em vez de falhar.
-  const getMic = useCallback(
-    () =>
-      navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          ...(micIdRef.current ? { deviceId: { ideal: micIdRef.current } } : {}),
-        },
-      }),
-    [],
-  );
+  const getMic = useCallback(async () => {
+    const ai = noiseRef.current === "ai";
+    const raw = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        // No modo IA o modelo limpa; somar o filtro do navegador só piora a voz.
+        noiseSuppression: !ai,
+        ...(micIdRef.current ? { deviceId: { ideal: micIdRef.current } } : {}),
+      },
+    });
+    if (!ai) return raw;
+    try {
+      return await withNoiseAi(raw);
+    } catch (err) {
+      console.warn("noise ai error", err);
+      noiseRef.current = "standard";
+      setNoiseMode("standard");
+      notifyRef.current(
+        "A supressão de ruído avançada não funcionou neste dispositivo; voltei para a padrão.",
+      );
+      await raw
+        .getAudioTracks()[0]
+        ?.applyConstraints({ echoCancellation: true, noiseSuppression: true })
+        .catch(() => {});
+      return raw;
+    }
+  }, []);
+
+  /** Reabre o microfone com as escolhas atuais e troca na chamada, sem renegociar. */
+  const swapMic = useCallback(async () => {
+    const old = micStreamRef.current;
+    if (!old) return; // fora da sala: vale na próxima entrada
+    try {
+      const stream = await getMic();
+      // Saiu da sala (ou trocou de novo) enquanto abria o microfone.
+      if (micStreamRef.current !== old) {
+        stopMic(stream);
+        return;
+      }
+      const track = stream.getAudioTracks()[0] ?? null;
+      if (track) track.enabled = micOnRef.current;
+      // Transceiver 0 é o do microfone nos dois lados (ver createPeer).
+      for (const [, p] of peersRef.current) {
+        await p.pc.getTransceivers()[0]?.sender.replaceTrack(track);
+      }
+      micStreamRef.current = stream;
+      stopMic(old);
+      startMeter(stream);
+    } catch {
+      notify("Não foi possível usar esse microfone.");
+    }
+  }, [getMic, notify, startMeter]);
 
   const changeMic = useCallback(
     async (id: string) => {
@@ -647,29 +750,23 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       } catch {
         /* noop */
       }
-      const old = micStreamRef.current;
-      if (!old) return; // fora da sala: vale na próxima entrada
-      try {
-        const stream = await getMic();
-        // Saiu da sala (ou trocou de novo) enquanto abria o microfone.
-        if (micStreamRef.current !== old) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        const track = stream.getAudioTracks()[0] ?? null;
-        if (track) track.enabled = micOnRef.current;
-        // Transceiver 0 é o do microfone nos dois lados (ver createPeer).
-        for (const [, p] of peersRef.current) {
-          await p.pc.getTransceivers()[0]?.sender.replaceTrack(track);
-        }
-        micStreamRef.current = stream;
-        old.getTracks().forEach((t) => t.stop());
-        startMeter(stream);
-      } catch {
-        notify("Não foi possível usar esse microfone.");
-      }
+      await swapMic();
     },
-    [getMic, notify, startMeter],
+    [swapMic],
+  );
+
+  const changeNoise = useCallback(
+    async (mode: NoiseMode) => {
+      noiseRef.current = mode;
+      setNoiseMode(mode);
+      try {
+        localStorage.setItem("noiseMode", mode);
+      } catch {
+        /* noop */
+      }
+      await swapMic();
+    },
+    [swapMic],
   );
 
   const changeSpeaker = useCallback((id: string) => {
@@ -701,7 +798,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       if (channelRef.current) void supabase.removeChannel(channelRef.current);
       channelRef.current = null;
       if (!keepMic) {
-        micStreamRef.current?.getTracks().forEach((t) => t.stop());
+        stopMic(micStreamRef.current);
         micStreamRef.current = null;
         stopMeter();
       }
@@ -858,7 +955,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         p.pc.close();
       }
       peersRef.current.clear();
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopMic(micStreamRef.current);
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       camStreamRef.current?.getTracks().forEach((t) => t.stop());
       if (channelRef.current) void supabase.removeChannel(channelRef.current);
@@ -905,6 +1002,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     speakerId,
     changeMic,
     changeSpeaker,
+    noiseMode,
+    changeNoise,
     screenQuality,
     changeScreenQuality,
     join,

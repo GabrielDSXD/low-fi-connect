@@ -210,6 +210,8 @@ function Index() {
             onSpeaker={call.changeSpeaker}
             screenQuality={call.screenQuality}
             onScreenQuality={call.changeScreenQuality}
+            noiseMode={call.noiseMode}
+            onNoiseMode={(mode) => void call.changeNoise(mode)}
             onToggleMic={call.toggleMic}
             onToggleShare={call.toggleShare}
             onToggleCam={call.toggleCam}

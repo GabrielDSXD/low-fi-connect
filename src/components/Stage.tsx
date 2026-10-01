@@ -13,7 +13,7 @@ import {
   VideoOff,
   Volume2,
 } from "lucide-react";
-import type { Participant, ScreenQuality } from "@/hooks/useCall";
+import type { NoiseMode, Participant, ScreenQuality } from "@/hooks/useCall";
 import type { Volumes } from "@/components/VolumeMenu";
 import { Avatar } from "@/components/Avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,6 +44,8 @@ type Props = {
   onSpeaker: (deviceId: string) => void;
   screenQuality: ScreenQuality;
   onScreenQuality: (q: ScreenQuality) => void;
+  noiseMode: NoiseMode;
+  onNoiseMode: (mode: NoiseMode) => void;
   onToggleMic: () => void;
   onToggleShare: () => void;
   onToggleCam: () => void;
@@ -257,6 +259,8 @@ export function Stage(p: Props) {
               onSpeaker={p.onSpeaker}
               screenQuality={p.screenQuality}
               onScreenQuality={p.onScreenQuality}
+              noiseMode={p.noiseMode}
+              onNoiseMode={p.onNoiseMode}
             />
           </PopoverContent>
         </Popover>
@@ -431,7 +435,7 @@ const canPickOutput = () =>
 const isAlias = (d: MediaDeviceInfo) => d.deviceId === "default" || d.deviceId === "communications";
 
 /** Botões lado a lado para escolher uma entre poucas opções. */
-function Segmented<T extends number>(p: {
+function Segmented<T extends string | number>(p: {
   label: string;
   value: T;
   options: readonly T[];
@@ -446,7 +450,8 @@ function Segmented<T extends number>(p: {
       <div
         role="group"
         aria-label={p.label}
-        className="grid grid-cols-3 gap-1 rounded-md bg-input p-1"
+        style={{ gridTemplateColumns: `repeat(${p.options.length}, minmax(0, 1fr))` }}
+        className="grid gap-1 rounded-md bg-input p-1"
       >
         {p.options.map((o) => (
           <button
@@ -475,6 +480,8 @@ function DevicePicker(p: {
   onSpeaker: (id: string) => void;
   screenQuality: ScreenQuality;
   onScreenQuality: (q: ScreenQuality) => void;
+  noiseMode: NoiseMode;
+  onNoiseMode: (mode: NoiseMode) => void;
 }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   useEffect(() => {
@@ -518,6 +525,16 @@ function DevicePicker(p: {
       {canPickOutput()
         ? pick("audiooutput", p.speakerId, "Saída de áudio", "Saída", p.onSpeaker)
         : null}
+      <Segmented
+        label="Supressão de ruído"
+        value={p.noiseMode}
+        options={["standard", "ai"] as const}
+        format={(v) => (v === "ai" ? "Avançada (IA)" : "Padrão")}
+        onChange={p.onNoiseMode}
+      />
+      <p className="-mt-1.5 text-xs text-muted-foreground">
+        A avançada também tira teclado, mouse e barulho de fundo.
+      </p>
       <div className="mt-1 grid gap-3 border-t border-border pt-3">
         <Segmented
           label="Qualidade da tela"

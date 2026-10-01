@@ -11,6 +11,7 @@ export type Member = {
   room: string | null;
   muted: boolean;
   sharing: boolean;
+  camera: boolean;
 };
 
 export type ChatMessage = {
@@ -22,7 +23,7 @@ export type ChatMessage = {
   mine: boolean;
 };
 
-type Live = Pick<Member, "muted" | "sharing">;
+type Live = Pick<Member, "muted" | "sharing" | "camera">;
 
 export const NICK_TAKEN = "Esse apelido já está em uso. Escolha outro.";
 const sameNick = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -125,7 +126,7 @@ export function useLobby() {
     const channel = channelRef.current;
     const mine = selfRef.current;
     if (!channel || !mine || !readyRef.current) return;
-    const payload = { id: mine.id, muted: mine.muted, sharing: mine.sharing };
+    const payload = { id: mine.id, muted: mine.muted, sharing: mine.sharing, camera: mine.camera };
     void channel.send({ type: "broadcast", event: "state", payload });
   }, []);
 
@@ -171,7 +172,10 @@ export function useLobby() {
     channel.on("broadcast", { event: "state" }, ({ payload }) => {
       const p = payload as Partial<Live & { id: string }>;
       if (typeof p?.id !== "string") return;
-      setLive((prev) => ({ ...prev, [p.id!]: { muted: !!p.muted, sharing: !!p.sharing } }));
+      setLive((prev) => ({
+        ...prev,
+        [p.id!]: { muted: !!p.muted, sharing: !!p.sharing, camera: !!p.camera },
+      }));
     });
 
     channel.on("broadcast", { event: "chat" }, ({ payload }) => {
@@ -238,6 +242,7 @@ export function useLobby() {
         room: null,
         muted: false,
         sharing: false,
+        camera: false,
       };
       await connect();
     },
@@ -246,14 +251,15 @@ export function useLobby() {
 
   /** Atualiza o que os outros veem sobre mim (sala, mudo, compartilhando). */
   const update = useCallback(
-    (patch: Partial<Pick<Member, "room" | "muted" | "sharing">>) => {
+    (patch: Partial<Pick<Member, "room" | "muted" | "sharing" | "camera">>) => {
       const prev = selfRef.current;
       if (!prev) return;
       const next = { ...prev, ...patch };
       selfRef.current = next;
       if (readyRef.current) setSelf(next);
       if (next.room !== prev.room) flushPresence(true);
-      if (next.muted !== prev.muted || next.sharing !== prev.sharing) broadcastLive();
+      if (next.muted !== prev.muted || next.sharing !== prev.sharing || next.camera !== prev.camera)
+        broadcastLive();
     },
     [broadcastLive, flushPresence],
   );

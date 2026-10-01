@@ -1,4 +1,4 @@
-import { MicOff, MonitorUp, Volume2 } from "lucide-react";
+import { MicOff, MonitorUp, Video, Volume2 } from "lucide-react";
 import { ROOMS } from "@/lib/rooms";
 import type { Member } from "@/hooks/useLobby";
 import { Avatar } from "@/components/Avatar";
@@ -85,6 +85,12 @@ export function RoomList({ members, currentRoom, meId, speaking, onJoin, onMenu 
                                 <MonitorUp className="size-3" />
                               </span>
                               <span className="sr-only">ao vivo</span>
+                            </>
+                          ) : null}
+                          {m.camera ? (
+                            <>
+                              <Video className="size-3.5 text-muted-foreground" aria-hidden />
+                              <span className="sr-only">câmera ligada</span>
                             </>
                           ) : null}
                           {m.muted ? (

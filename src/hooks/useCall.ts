@@ -15,6 +15,9 @@ export type Participant = {
   hasVideo: boolean;
   /** Faixa de vídeo existe, mas sem dados chegando (rede instável) */
   videoStalled: boolean;
+  camStream: MediaStream;
+  /** Câmera ligada e com vídeo chegando */
+  hasCam: boolean;
   connection: RTCPeerConnectionState;
 };
 
@@ -23,8 +26,33 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 
 // Tela: teto por espectador (a malha multiplica o upload de quem transmite).
-const SCREEN_VIDEO: RTCRtpEncodingParameters = { maxBitrate: 4_000_000, maxFramerate: 30 };
+export type ScreenQuality = { height: 1080 | 720 | 540; fps: 30 | 45 | 60 };
+const DEFAULT_QUALITY: ScreenQuality = { height: 1080, fps: 30 };
+const BASE_BITRATE = { 1080: 4_000_000, 720: 2_500_000, 540: 1_500_000 } as const;
+const FPS_FACTOR = { 30: 1, 45: 1.25, 60: 1.5 } as const;
+
+/** Teto de envio por espectador para a qualidade escolhida (1080p60 ≈ 6 Mbps). */
+const screenLimits = (q: ScreenQuality): RTCRtpEncodingParameters => ({
+  maxBitrate: Math.round(BASE_BITRATE[q.height] * FPS_FACTOR[q.fps]),
+  maxFramerate: q.fps,
+});
+const captureConstraints = (q: ScreenQuality) => ({
+  frameRate: { ideal: q.fps, max: q.fps },
+  height: { max: q.height },
+});
+
+function readQuality(): ScreenQuality {
+  try {
+    const q = JSON.parse(localStorage.getItem("screenQuality") ?? "null") as ScreenQuality | null;
+    if (q && q.height in BASE_BITRATE && q.fps in FPS_FACTOR) return q;
+  } catch {
+    /* sem storage ou valor inválido */
+  }
+  return DEFAULT_QUALITY;
+}
 const SCREEN_AUDIO_BITRATE = 128_000;
+// Câmera: 360p24 basta para rosto; é enviada a todos, então fica leve.
+const CAM_VIDEO: RTCRtpEncodingParameters = { maxBitrate: 700_000, maxFramerate: 24 };
 
 /**
  * Opus do áudio da tela (3ª m-line, ordem fixa dos transceivers) em estéreo e com bitrate
@@ -87,11 +115,13 @@ type PeerState = {
   nick: string;
   micStream: MediaStream;
   screenStream: MediaStream;
+  camStream: MediaStream;
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
   videoSender: RTCRtpSender | null;
   screenAudioSender: RTCRtpSender | null;
+  camSender: RTCRtpSender | null;
   recoverTimer: ReturnType<typeof setTimeout> | null;
   absentTimer: ReturnType<typeof setTimeout> | null;
 };
@@ -107,7 +137,7 @@ type Args = {
   me: { id: string; nick: string } | null;
   members: Member[];
   reconnecting: boolean;
-  update: (patch: Partial<Pick<Member, "room" | "muted" | "sharing">>) => void;
+  update: (patch: Partial<Pick<Member, "room" | "muted" | "sharing" | "camera">>) => void;
   notify: (msg: string) => void;
 };
 
@@ -121,6 +151,9 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
   const [shareAudioOn, setShareAudioOn] = useState(false);
+  const [localCam, setLocalCam] = useState<MediaStream | null>(null);
+  const [screenQuality, setScreenQuality] = useState<ScreenQuality>(DEFAULT_QUALITY);
+  const qualityRef = useRef<ScreenQuality>(DEFAULT_QUALITY);
   const [speaking, setSpeaking] = useState<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
   // Dispositivos escolhidos ("" = padrão do sistema), lembrados neste navegador.
@@ -138,6 +171,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const peersRef = useRef(new Map<string, PeerState>());
   const micStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
   const micOnRef = useRef(true);
   const speakingRef = useRef(false);
   const meterRef = useRef<{ timer: ReturnType<typeof setInterval>; ctx: AudioContext } | null>(
@@ -154,13 +188,18 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const watchRef = useRef(new Map<string, string | null>());
   const watchingRef = useRef<string | null>(null);
 
-  /** Só manda a tela para quem está assistindo a minha (ou ainda não disse o que assiste). */
+  /**
+   * Limites dos senders de vídeo. A tela só vai para quem está assistindo a minha (ou ainda
+   * não disse o que assiste); a câmera vai para todos.
+   */
   const tunePeer = useCallback((id: string) => {
     const p = peersRef.current.get(id);
-    if (!p || !screenStreamRef.current) return;
+    if (!p) return;
+    if (camStreamRef.current) tuneSender(p.camSender, true, CAM_VIDEO, true);
+    if (!screenStreamRef.current) return;
     const w = watchRef.current.get(id);
     const active = w == null || w === meRef.current;
-    tuneSender(p.videoSender, active, SCREEN_VIDEO, true);
+    tuneSender(p.videoSender, active, screenLimits(qualityRef.current), true);
     tuneSender(p.screenAudioSender, active, { maxBitrate: SCREEN_AUDIO_BITRATE }, false);
   }, []);
 
@@ -211,17 +250,19 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         nick: peerNick,
         micStream: new MediaStream(),
         screenStream: new MediaStream(),
+        camStream: new MediaStream(),
         polite,
         makingOffer: false,
         ignoreOffer: false,
         videoSender: null,
         screenAudioSender: null,
+        camSender: null,
         recoverTimer: null,
         absentTimer: null,
       };
       peersRef.current.set(id, state);
 
-      // Transceivers fixos: mic, tela (vídeo) e áudio da tela (índices 0, 1 e 2 dos dois lados).
+      // Transceivers fixos: mic, tela (vídeo), áudio da tela e câmera (índices 0 a 3 dos dois lados).
       // Compartilhar/parar é só replaceTrack, sem renegociação frágil.
       // Só quem oferta (impolite) cria os transceivers; quem responde reaproveita os que
       // chegam na oferta (ver attachTransceivers), senão sobrariam transceivers duplicados.
@@ -233,6 +274,9 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
           direction: "sendrecv",
         }).sender;
         state.screenAudioSender = pc.addTransceiver(screen?.getAudioTracks()[0] ?? "audio", {
+          direction: "sendrecv",
+        }).sender;
+        state.camSender = pc.addTransceiver(camStreamRef.current?.getVideoTracks()[0] ?? "video", {
           direction: "sendrecv",
         }).sender;
       }
@@ -254,9 +298,10 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       };
 
       pc.ontrack = ({ track, transceiver }) => {
-        // Ordem fixa: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela.
+        // Ordem fixa: 0 = microfone, 1 = vídeo da tela, 2 = áudio da tela, 3 = câmera.
         const index = pc.getTransceivers().indexOf(transceiver);
-        const target = index === 0 ? state.micStream : state.screenStream;
+        const target =
+          index === 0 ? state.micStream : index === 3 ? state.camStream : state.screenStream;
         for (const old of target.getTracks()) {
           if (old.kind === track.kind && old.readyState !== "live") target.removeTrack(old);
         }
@@ -314,18 +359,21 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     [sendSignal, sync, tunePeer],
   );
 
-  /** Quem responde: usa os 3 transceivers criados pela oferta e passa a enviar por eles. */
+  /** Quem responde: usa os transceivers criados pela oferta e passa a enviar por eles. */
   const attachTransceivers = useCallback(async (state: PeerState) => {
     if (state.videoSender) return;
-    const [mic, video, screenAudio] = state.pc.getTransceivers();
+    // `cam` falta quando o outro lado ainda usa a versão sem câmera.
+    const [mic, video, screenAudio, cam] = state.pc.getTransceivers();
     if (!mic || !video || !screenAudio) return;
-    for (const t of [mic, video, screenAudio]) t.direction = "sendrecv";
+    for (const t of [mic, video, screenAudio, cam]) if (t) t.direction = "sendrecv";
     const screen = screenStreamRef.current;
     await mic.sender.replaceTrack(micStreamRef.current?.getAudioTracks()[0] ?? null);
     await video.sender.replaceTrack(screen?.getVideoTracks()[0] ?? null);
     await screenAudio.sender.replaceTrack(screen?.getAudioTracks()[0] ?? null);
+    await cam?.sender.replaceTrack(camStreamRef.current?.getVideoTracks()[0] ?? null);
     state.videoSender = video.sender;
     state.screenAudioSender = screenAudio.sender;
+    state.camSender = cam?.sender ?? null;
   }, []);
 
   const handleSignal = useCallback(
@@ -439,8 +487,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     if (!roomRef.current) return;
     try {
       const screen = await navigator.mediaDevices.getDisplayMedia({
-        // 1080p30 no máximo: acima disso só pesa na codificação e no upload.
-        video: { frameRate: { ideal: 30, max: 30 }, height: { max: 1080 } },
+        // Resolução e fps escolhidos pela pessoa (padrão 1080p30).
+        video: captureConstraints(qualityRef.current),
         // Sem processamento de voz: o áudio da tela é música/vídeo, não fala.
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         // Só o som do que foi compartilhado (aba/janela), nunca o áudio geral do computador.
@@ -483,8 +531,91 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     else void startShare();
   }, [startShare, stopShare]);
 
+  // ---- câmera ----
+  const camBusyRef = useRef(false);
+
+  const stopCam = useCallback(() => {
+    const cam = camStreamRef.current;
+    if (!cam) return;
+    for (const [, p] of peersRef.current) void p.camSender?.replaceTrack(null);
+    cam.getTracks().forEach((t) => t.stop());
+    camStreamRef.current = null;
+    setLocalCam(null);
+    if (roomRef.current) update({ camera: false });
+  }, [update]);
+
+  const startCam = useCallback(async () => {
+    if (!roomRef.current || camBusyRef.current) return;
+    camBusyRef.current = true;
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24, max: 24 },
+          facingMode: "user",
+        },
+      });
+      // Saiu da sala (ou já ligou) enquanto o navegador pedia permissão.
+      if (!roomRef.current || camStreamRef.current) {
+        cam.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const track = cam.getVideoTracks()[0] ?? null;
+      if (track) track.contentHint = "motion";
+      camStreamRef.current = cam;
+      setLocalCam(cam);
+      update({ camera: true });
+      for (const [id, p] of peersRef.current) {
+        await p.camSender?.replaceTrack(track);
+        tunePeer(id);
+      }
+      track?.addEventListener("ended", () => stopCam()); // câmera desconectada
+    } catch (err) {
+      const name = (err as DOMException)?.name;
+      notify(
+        name === "NotAllowedError"
+          ? "Sem acesso à câmera. Permita o uso nas configurações do navegador e tente de novo."
+          : name === "NotFoundError"
+            ? "Nenhuma câmera encontrada."
+            : name === "NotReadableError"
+              ? "A câmera está em uso por outro programa."
+              : "Não foi possível ligar a câmera.",
+      );
+    } finally {
+      camBusyRef.current = false;
+    }
+  }, [notify, stopCam, tunePeer, update]);
+
+  const toggleCam = useCallback(() => {
+    if (camStreamRef.current) stopCam();
+    else void startCam();
+  }, [startCam, stopCam]);
+
+  /** Muda a qualidade da tela; se já estiver transmitindo, vale na hora. */
+  const changeScreenQuality = useCallback(
+    (q: ScreenQuality) => {
+      qualityRef.current = q;
+      setScreenQuality(q);
+      try {
+        localStorage.setItem("screenQuality", JSON.stringify(q));
+      } catch {
+        /* noop */
+      }
+      const video = screenStreamRef.current?.getVideoTracks()[0];
+      if (!video) return;
+      video.applyConstraints(captureConstraints(q)).catch(() => {
+        notify("Não foi possível mudar a qualidade da transmissão neste dispositivo.");
+      });
+      for (const id of peersRef.current.keys()) tunePeer(id);
+    },
+    [notify, tunePeer],
+  );
+
   // ---- microfone ----
   useEffect(() => {
+    qualityRef.current = readQuality();
+    setScreenQuality(qualityRef.current);
     try {
       micIdRef.current = localStorage.getItem("micId") ?? "";
       setMicId(micIdRef.current);
@@ -565,6 +696,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const teardown = useCallback(
     (keepMic: boolean) => {
       stopShare();
+      stopCam();
       for (const id of [...peersRef.current.keys()]) closePeer(id);
       if (channelRef.current) void supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -581,7 +713,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       setSpeaking(new Set());
       setRoomId(null);
     },
-    [closePeer, stopMeter, stopShare],
+    [closePeer, stopCam, stopMeter, stopShare],
   );
 
   const join = useCallback(
@@ -635,13 +767,13 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
 
         roomRef.current = room;
         setRoomId(room);
-        update({ room, muted: false, sharing: false });
+        update({ room, muted: false, sharing: false, camera: false });
         beep("in");
       } catch {
         // Fora de qualquer sala: solta o microfone e corrige a presença (troca de sala
         // que falhou ainda mostraria a sala antiga).
         teardown(false);
-        update({ room: null, muted: false, sharing: false });
+        update({ room: null, muted: false, sharing: false, camera: false });
         notify("Não foi possível entrar na sala. Tente de novo.");
       } finally {
         joiningRef.current = false;
@@ -662,7 +794,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
 
   const leave = useCallback(() => {
     teardown(false);
-    update({ room: null, muted: false, sharing: false });
+    update({ room: null, muted: false, sharing: false, camera: false });
     beep("out");
   }, [teardown, update]);
 
@@ -728,6 +860,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       peersRef.current.clear();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      camStreamRef.current?.getTracks().forEach((t) => t.stop());
       if (channelRef.current) void supabase.removeChannel(channelRef.current);
       stopMeter();
     },
@@ -740,6 +873,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       const member = members.find((m) => m.id === id);
       const video = p.screenStream.getVideoTracks().filter((t) => t.readyState === "live");
       const isSharing = !!member?.sharing;
+      const cam = p.camStream.getVideoTracks().filter((t) => t.readyState === "live");
       return {
         id,
         nick: member?.nick ?? p.nick,
@@ -750,6 +884,9 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         // Ao parar, a faixa remota continua "viva" (muda): só vale se a pessoa avisou que compartilha.
         hasVideo: isSharing && video.length > 0,
         videoStalled: video.some((t) => t.muted),
+        camStream: p.camStream,
+        // Como na tela: a faixa fica "viva" depois de desligar; vale o aviso da pessoa.
+        hasCam: !!member?.camera && cam.length > 0,
         connection: p.pc.connectionState,
       };
     });
@@ -762,15 +899,19 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     sharing,
     localScreen,
     shareAudioOn,
+    localCam,
     speaking,
     micId,
     speakerId,
     changeMic,
     changeSpeaker,
+    screenQuality,
+    changeScreenQuality,
     join,
     leave,
     toggleMic,
     toggleShare,
+    toggleCam,
     watch,
   };
 }

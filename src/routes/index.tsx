@@ -126,6 +126,13 @@ function Index() {
       muted: m.id === me.id ? !call.micOn : m.muted,
       sharing: m.id === me.id ? call.sharing : m.sharing,
       speaking: call.speaking.has(m.id),
+      cam:
+        m.id === me.id
+          ? call.localCam
+          : (() => {
+              const peer = call.participants.find((x) => x.id === m.id);
+              return peer?.hasCam ? peer.camStream : null;
+            })(),
     }));
   const menuPerson = menu ? call.participants.find((p) => p.id === menu.id) : null;
   const banner = lobby.reconnecting ? "Conexão perdida. Reconectando…" : notice;
@@ -195,13 +202,17 @@ function Index() {
             micOn={call.micOn}
             sharing={call.sharing}
             shareAudioOn={call.shareAudioOn}
+            camOn={!!call.localCam}
             volumes={volumesOf}
             micId={call.micId}
             speakerId={call.speakerId}
             onMic={(id) => void call.changeMic(id)}
             onSpeaker={call.changeSpeaker}
+            screenQuality={call.screenQuality}
+            onScreenQuality={call.changeScreenQuality}
             onToggleMic={call.toggleMic}
             onToggleShare={call.toggleShare}
+            onToggleCam={call.toggleCam}
             onLeave={call.leave}
             onMenu={openMenu}
             onWatch={call.watch}

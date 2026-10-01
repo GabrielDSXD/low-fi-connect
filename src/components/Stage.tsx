@@ -9,9 +9,11 @@ import {
   MonitorUp,
   PhoneOff,
   Settings,
+  Video,
+  VideoOff,
   Volume2,
 } from "lucide-react";
-import type { Participant } from "@/hooks/useCall";
+import type { Participant, ScreenQuality } from "@/hooks/useCall";
 import type { Volumes } from "@/components/VolumeMenu";
 import { Avatar } from "@/components/Avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +25,8 @@ export type Tile = {
   muted: boolean;
   sharing: boolean;
   speaking: boolean;
+  /** Vídeo da câmera (o meu é a prévia local) */
+  cam: MediaStream | null;
 };
 
 type Props = {
@@ -32,13 +36,17 @@ type Props = {
   micOn: boolean;
   sharing: boolean;
   shareAudioOn: boolean;
+  camOn: boolean;
   volumes: (nick: string) => Volumes;
   micId: string;
   speakerId: string;
   onMic: (deviceId: string) => void;
   onSpeaker: (deviceId: string) => void;
+  screenQuality: ScreenQuality;
+  onScreenQuality: (q: ScreenQuality) => void;
   onToggleMic: () => void;
   onToggleShare: () => void;
+  onToggleCam: () => void;
   onLeave: () => void;
   onMenu: (id: string, x: number, y: number) => void;
   /** Tela que estou assistindo (null = nenhuma) */
@@ -128,26 +136,40 @@ export function Stage(p: Props) {
                   const r = e.currentTarget.getBoundingClientRect();
                   p.onMenu(t.id, e.clientX || r.left, e.clientY || r.bottom);
                 }}
-                className={`relative flex flex-col items-center gap-2 rounded-lg bg-card px-2 transition-colors ${
-                  watching ? "pb-2 pt-7" : "pb-3 pt-10"
+                className={`relative flex flex-col items-center gap-2 overflow-hidden rounded-lg bg-card transition-[colors,box-shadow] ${
+                  t.cam
+                    ? "aspect-video justify-end p-2"
+                    : `px-2 ${watching ? "pb-2 pt-7" : "pb-3 pt-10"}`
                 } ${t.isMe ? "" : "cursor-context-menu hover:bg-secondary"}`}
               >
+                {t.cam ? (
+                  <CamVideo stream={t.cam} mirror={t.isMe} label={`Câmera de ${t.nick}`} />
+                ) : null}
+                {t.cam && t.speaking ? (
+                  // O vídeo é desenhado numa camada própria: a moldura de fala precisa ficar por cima.
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-10 rounded-lg shadow-[inset_0_0_0_3px_var(--color-speaking)]"
+                  />
+                ) : null}
                 {/* Quem está sendo assistido já tem o rótulo na própria transmissão */}
                 {t.sharing && t.id !== watching?.id ? (
-                  <span className="absolute left-2 top-2 rounded bg-live px-1.5 text-[0.6875rem] font-extrabold leading-5 tracking-wide text-white">
+                  <span className="absolute left-2 top-2 z-10 rounded bg-live px-1.5 text-[0.6875rem] font-extrabold leading-5 tracking-wide text-white">
                     AO VIVO
                   </span>
                 ) : null}
-                <Avatar
-                  nick={t.nick}
-                  speaking={t.speaking}
-                  gap="var(--color-card)"
-                  className={watching ? "size-12 text-lg" : "size-20 text-3xl"}
-                />
+                {t.cam ? null : (
+                  <Avatar
+                    nick={t.nick}
+                    speaking={t.speaking}
+                    gap="var(--color-card)"
+                    className={watching ? "size-12 text-lg" : "size-20 text-3xl"}
+                  />
+                )}
                 {t.speaking ? <span className="sr-only">falando</span> : null}
                 <span
-                  className={`flex max-w-full items-center gap-1.5 text-sm font-semibold text-foreground ${
-                    watching ? "" : "mt-2"
+                  className={`relative flex max-w-full items-center gap-1.5 text-sm font-semibold text-foreground ${
+                    t.cam ? "self-start rounded bg-rail/85 px-2 py-0.5" : watching ? "" : "mt-2"
                   }`}
                 >
                   {t.muted ? (
@@ -191,6 +213,17 @@ export function Stage(p: Props) {
           )}
         </DockButton>
         <DockButton
+          label={p.camOn ? "Desligar câmera" : "Ligar câmera"}
+          onClick={p.onToggleCam}
+          tone={p.camOn ? "on" : "idle"}
+        >
+          {p.camOn ? (
+            <Video className="size-5" aria-hidden />
+          ) : (
+            <VideoOff className="size-5" aria-hidden />
+          )}
+        </DockButton>
+        <DockButton
           label={p.sharing ? "Parar de compartilhar" : "Compartilhar tela"}
           onClick={p.onToggleShare}
           tone={p.sharing ? "on" : "idle"}
@@ -205,8 +238,8 @@ export function Stage(p: Props) {
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label="Microfone e saída de áudio"
-              title="Microfone e saída de áudio"
+              aria-label="Áudio e transmissão"
+              title="Áudio e transmissão"
               className={dock("idle")}
             >
               <Settings className="size-5" aria-hidden />
@@ -222,6 +255,8 @@ export function Stage(p: Props) {
               speakerId={p.speakerId}
               onMic={p.onMic}
               onSpeaker={p.onSpeaker}
+              screenQuality={p.screenQuality}
+              onScreenQuality={p.onScreenQuality}
             />
           </PopoverContent>
         </Popover>
@@ -279,6 +314,35 @@ function DockButton({
     <button type="button" onClick={onClick} aria-label={label} title={label} className={dock(tone)}>
       {children}
     </button>
+  );
+}
+
+/** Vídeo da câmera dentro do card. Mudo: o som vem pelo áudio do microfone. */
+function CamVideo({
+  stream,
+  mirror,
+  label,
+}: {
+  stream: MediaStream;
+  mirror: boolean;
+  label: string;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    void el.play().catch(() => {});
+  }, [stream]);
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted
+      aria-label={label}
+      className={`absolute inset-0 size-full object-cover ${mirror ? "-scale-x-100" : ""}`}
+    />
   );
 }
 
@@ -366,11 +430,51 @@ const canPickOutput = () =>
 // Entradas-apelido do Chrome; o "Padrão do sistema" já cobre.
 const isAlias = (d: MediaDeviceInfo) => d.deviceId === "default" || d.deviceId === "communications";
 
+/** Botões lado a lado para escolher uma entre poucas opções. */
+function Segmented<T extends number>(p: {
+  label: string;
+  value: T;
+  options: readonly T[];
+  format: (v: T) => string;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        {p.label}
+      </span>
+      <div
+        role="group"
+        aria-label={p.label}
+        className="grid grid-cols-3 gap-1 rounded-md bg-input p-1"
+      >
+        {p.options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            aria-pressed={o === p.value}
+            onClick={() => p.onChange(o)}
+            className={`min-h-9 rounded text-sm font-semibold tabular-nums transition-colors ${
+              o === p.value
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            {p.format(o)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DevicePicker(p: {
   micId: string;
   speakerId: string;
   onMic: (id: string) => void;
   onSpeaker: (id: string) => void;
+  screenQuality: ScreenQuality;
+  onScreenQuality: (q: ScreenQuality) => void;
 }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   useEffect(() => {
@@ -414,6 +518,25 @@ function DevicePicker(p: {
       {canPickOutput()
         ? pick("audiooutput", p.speakerId, "Saída de áudio", "Saída", p.onSpeaker)
         : null}
+      <div className="mt-1 grid gap-3 border-t border-border pt-3">
+        <Segmented
+          label="Qualidade da tela"
+          value={p.screenQuality.height}
+          options={[1080, 720, 540] as const}
+          format={(v) => `${v}p`}
+          onChange={(height) => p.onScreenQuality({ ...p.screenQuality, height })}
+        />
+        <Segmented
+          label="Fluidez da tela"
+          value={p.screenQuality.fps}
+          options={[30, 45, 60] as const}
+          format={(v) => `${v} fps`}
+          onChange={(fps) => p.onScreenQuality({ ...p.screenQuality, fps })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Mais qualidade usa mais internet de quem transmite (uma cópia por pessoa assistindo).
+        </p>
+      </div>
     </div>
   );
 }

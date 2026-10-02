@@ -28,14 +28,34 @@ const ICE_SERVERS: RTCIceServer[] = [
 // Tela: teto por espectador (a malha multiplica o upload de quem transmite).
 export type ScreenQuality = { height: 1080 | 720 | 540; fps: 30 | 45 | 60 };
 const DEFAULT_QUALITY: ScreenQuality = { height: 1080, fps: 30 };
-const BASE_BITRATE = { 1080: 4_000_000, 720: 2_500_000, 540: 1_500_000 } as const;
+// Medido com conteúdo de jogo: com 4 Mbps em 1080p o envio colava no teto e o navegador
+// cortava a resolução para 540–720p. Sem teto é pior (o Chrome cai para ~2,5 Mbps).
+const BASE_BITRATE = { 1080: 8_000_000, 720: 5_000_000, 540: 3_000_000 } as const;
 const FPS_FACTOR = { 30: 1, 45: 1.25, 60: 1.5 } as const;
 
-/** Teto de envio por espectador para a qualidade escolhida (1080p60 ≈ 6 Mbps). */
+/** Teto de envio por espectador para a qualidade escolhida (1080p60 = 12 Mbps). */
 const screenLimits = (q: ScreenQuality): RTCRtpEncodingParameters => ({
   maxBitrate: Math.round(BASE_BITRATE[q.height] * FPS_FACTOR[q.fps]),
   maxFramerate: q.fps,
 });
+/**
+ * Codec da tela. Medido com conteúdo de jogo: o VP8 (padrão do navegador) desabava para
+ * 270–360p mesmo com 8 Mbps; o H.264 manteve 1080p. Em PC com placa de vídeo o navegador
+ * ainda codifica H.264 nela (NVENC/AMF/QuickSync), tirando o peso da CPU que roda o jogo.
+ */
+const SCREEN_CODEC = "video/H264";
+
+export type ShareStats = {
+  height: number;
+  fps: number;
+  mbps: number;
+  codec: string;
+  /** null = o navegador não informa */
+  gpu: boolean | null;
+  /** O que está segurando a qualidade agora */
+  limit: "cpu" | "bandwidth" | null;
+};
+
 const captureConstraints = (q: ScreenQuality) => ({
   frameRate: { ideal: q.fps, max: q.fps },
   height: { max: q.height },
@@ -129,12 +149,13 @@ async function setLocal(pc: RTCPeerConnection) {
 // setParameters não aceita chamadas sobrepostas no mesmo sender: enfileira.
 const tuneQueue = new WeakMap<RTCRtpSender, Promise<void>>();
 
-/** Liga/desliga o envio de um sender da tela e aplica os limites. */
+/** Liga/desliga o envio de um sender da tela e aplica os limites (e o codec, se pedido). */
 function tuneSender(
   sender: RTCRtpSender | null,
   active: boolean,
   limits: RTCRtpEncodingParameters,
   framerateFirst: boolean,
+  codec: string | null = null,
 ) {
   if (!sender) return;
   const run = async () => {
@@ -145,11 +166,19 @@ function tuneSender(
     if (!enc) return; // ainda não negociado: reaplica ao conectar
     Object.assign(enc, limits, { active });
     if (framerateFirst) params.degradationPreference = "maintain-framerate";
+    // Troca de codec sem renegociar (Chrome 126+): escolhe entre os já negociados.
+    const negotiated = (params.codecs ?? []).filter(
+      (c) => c.mimeType.toLowerCase() === codec?.toLowerCase(),
+    );
+    const chosen =
+      negotiated.find((c) => c.sdpFmtpLine?.includes("packetization-mode=1")) ?? negotiated[0];
+    if (chosen) (enc as RTCRtpEncodingParameters & { codec?: RTCRtpCodec }).codec = chosen;
     try {
       await sender.setParameters(params);
     } catch {
-      // Navegador sem degradationPreference: aplica o resto (o contentHint já prioriza fps).
+      // Navegador sem degradationPreference ou sem troca de codec: aplica o resto.
       delete params.degradationPreference;
+      delete (enc as { codec?: unknown }).codec;
       await sender.setParameters(params);
     }
   };
@@ -200,6 +229,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const [sharing, setSharing] = useState(false);
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
   const [shareAudioOn, setShareAudioOn] = useState(false);
+  const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const [localCam, setLocalCam] = useState<MediaStream | null>(null);
   const [screenQuality, setScreenQuality] = useState<ScreenQuality>(DEFAULT_QUALITY);
   const qualityRef = useRef<ScreenQuality>(DEFAULT_QUALITY);
@@ -250,7 +280,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     if (!screenStreamRef.current) return;
     const w = watchRef.current.get(id);
     const active = w == null || w === meRef.current;
-    tuneSender(p.videoSender, active, screenLimits(qualityRef.current), true);
+    tuneSender(p.videoSender, active, screenLimits(qualityRef.current), true, SCREEN_CODEC);
     tuneSender(p.screenAudioSender, active, { maxBitrate: SCREEN_AUDIO_BITRATE }, false);
   }, []);
 
@@ -585,6 +615,51 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       );
     }
   }, [notify, stopShare, tunePeer, update]);
+
+  // Painel de quem transmite: o que está saindo de verdade e o que está segurando a qualidade.
+  useEffect(() => {
+    if (!sharing) {
+      setShareStats(null);
+      return;
+    }
+    const last = new Map<string, { bytes: number; t: number }>();
+    const timer = setInterval(async () => {
+      let best = null as Omit<ShareStats, "mbps" | "limit"> | null;
+      let bits = 0;
+      let limit = null as ShareStats["limit"];
+      for (const [id, p] of peersRef.current) {
+        if (!p.videoSender?.track) continue;
+        const report = await p.videoSender.getStats().catch(() => null);
+        if (!report) continue;
+        const codecs = new Map<string, string>();
+        report.forEach((r) => {
+          if (r.type === "codec") codecs.set(r.id, r.mimeType);
+        });
+        report.forEach((r) => {
+          if (r.type !== "outbound-rtp" || r.kind !== "video" || !r.framesSent) return;
+          const prev = last.get(id);
+          if (prev && r.timestamp > prev.t) {
+            bits += ((r.bytesSent - prev.bytes) * 8) / ((r.timestamp - prev.t) / 1000);
+          }
+          last.set(id, { bytes: r.bytesSent, t: r.timestamp });
+          if (!r.framesPerSecond) return; // pausado (a pessoa assiste outra tela)
+          if (r.qualityLimitationReason === "cpu") limit = "cpu";
+          else if (r.qualityLimitationReason === "bandwidth" && limit !== "cpu")
+            limit = "bandwidth";
+          if (!best || (r.frameHeight ?? 0) > best.height) {
+            best = {
+              height: r.frameHeight ?? 0,
+              fps: Math.round(r.framesPerSecond),
+              codec: (codecs.get(r.codecId) ?? "").replace("video/", ""),
+              gpu: typeof r.powerEfficientEncoder === "boolean" ? r.powerEfficientEncoder : null,
+            };
+          }
+        });
+      }
+      setShareStats(best ? { ...best, mbps: bits / 1e6, limit } : null);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [sharing]);
 
   const toggleShare = useCallback(() => {
     if (screenStreamRef.current) stopShare();
@@ -996,6 +1071,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     sharing,
     localScreen,
     shareAudioOn,
+    shareStats,
     localCam,
     speaking,
     micId,

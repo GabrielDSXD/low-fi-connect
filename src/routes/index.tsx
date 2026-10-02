@@ -202,6 +202,7 @@ function Index() {
             micOn={call.micOn}
             sharing={call.sharing}
             shareAudioOn={call.shareAudioOn}
+            shareStats={call.shareStats}
             camOn={!!call.localCam}
             volumes={volumesOf}
             micId={call.micId}

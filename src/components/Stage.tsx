@@ -13,7 +13,7 @@ import {
   VideoOff,
   Volume2,
 } from "lucide-react";
-import type { NoiseMode, Participant, ScreenQuality } from "@/hooks/useCall";
+import type { NoiseMode, Participant, ScreenQuality, ShareStats } from "@/hooks/useCall";
 import type { Volumes } from "@/components/VolumeMenu";
 import { Avatar } from "@/components/Avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -36,6 +36,7 @@ type Props = {
   micOn: boolean;
   sharing: boolean;
   shareAudioOn: boolean;
+  shareStats: ShareStats | null;
   camOn: boolean;
   volumes: (nick: string) => Volumes;
   micId: string;
@@ -80,6 +81,7 @@ export function Stage(p: Props) {
       </header>
 
       <div className="flex flex-1 flex-col overflow-y-auto p-4">
+        {p.sharing && p.shareStats ? <ShareStatus s={p.shareStats} /> : null}
         {p.sharing && !p.shareAudioOn ? (
           <p className="mb-4 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
             Você está compartilhando sem som. Pare, compartilhe de novo, escolha uma
@@ -318,6 +320,38 @@ function DockButton({
     <button type="button" onClick={onClick} aria-label={label} title={label} className={dock(tone)}>
       {children}
     </button>
+  );
+}
+
+/** O que a minha transmissão está mandando de verdade, e o que está segurando a qualidade. */
+function ShareStatus({ s }: { s: ShareStats }) {
+  return (
+    <p
+      role="status"
+      className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground"
+    >
+      <span className="font-semibold text-foreground">Sua transmissão:</span>
+      <span className="tabular-nums">
+        {s.height}p · {s.fps} fps · {s.mbps.toFixed(1).replace(".", ",")} Mbps
+      </span>
+      {s.codec ? (
+        <span>
+          · {s.codec}
+          {s.gpu === null ? "" : s.gpu ? " na placa de vídeo" : " na CPU"}
+        </span>
+      ) : null}
+      {s.limit === "cpu" ? (
+        <span className="w-full text-destructive">
+          Seu PC está no limite para codificar o vídeo. Tente 720p ou 30 fps em Áudio e transmissão,
+          ou feche programas pesados.
+        </span>
+      ) : s.limit === "bandwidth" ? (
+        <span className="w-full">
+          A conexão (ou o limite de envio) está segurando a qualidade. Se travar para quem assiste,
+          tente 720p.
+        </span>
+      ) : null}
+    </p>
   );
 }
 

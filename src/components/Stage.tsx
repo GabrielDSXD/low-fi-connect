@@ -37,6 +37,8 @@ type Props = {
   sharing: boolean;
   shareAudioOn: boolean;
   shareStats: ShareStats | null;
+  pcAudio: "on" | "off" | null;
+  onTogglePcAudio: () => void;
   camOn: boolean;
   volumes: (nick: string) => Volumes;
   micId: string;
@@ -82,6 +84,31 @@ export function Stage(p: Props) {
 
       <div className="flex flex-1 flex-col overflow-y-auto p-4">
         {p.sharing && p.shareStats ? <ShareStatus s={p.shareStats} /> : null}
+        {p.sharing && p.pcAudio ? (
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            <p className="min-w-0 flex-1 basis-64">
+              {p.pcAudio === "off" ? (
+                <>
+                  <strong className="text-foreground">Som da transmissão desligado.</strong> Ao
+                  compartilhar uma janela ou a tela, o navegador só consegue mandar o som do PC
+                  inteiro, incluindo o Discord.
+                </>
+              ) : (
+                <>
+                  <strong className="text-foreground">Mandando o som do PC inteiro</strong>,
+                  incluindo o Discord e outros programas.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={p.onTogglePcAudio}
+              className="min-h-11 shrink-0 rounded-md bg-secondary px-4 text-sm font-bold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
+            >
+              {p.pcAudio === "off" ? "Ligar som do PC" : "Desligar som do PC"}
+            </button>
+          </div>
+        ) : null}
         {p.sharing && !p.shareAudioOn ? (
           <p className="mb-4 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
             Você está compartilhando sem som. Pare, compartilhe de novo, escolha uma

@@ -203,6 +203,8 @@ function Index() {
             sharing={call.sharing}
             shareAudioOn={call.shareAudioOn}
             shareStats={call.shareStats}
+            pcAudio={call.pcAudio}
+            onTogglePcAudio={call.togglePcAudio}
             camOn={!!call.localCam}
             volumes={volumesOf}
             micId={call.micId}

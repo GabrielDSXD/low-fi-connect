@@ -230,6 +230,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
   const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
   const [shareAudioOn, setShareAudioOn] = useState(false);
   const [shareStats, setShareStats] = useState<ShareStats | null>(null);
+  /** Som do PC inteiro na transmissão: null = não é o caso (aba ou sem som) */
+  const [pcAudio, setPcAudio] = useState<"on" | "off" | null>(null);
   const [localCam, setLocalCam] = useState<MediaStream | null>(null);
   const [screenQuality, setScreenQuality] = useState<ScreenQuality>(DEFAULT_QUALITY);
   const qualityRef = useRef<ScreenQuality>(DEFAULT_QUALITY);
@@ -570,6 +572,7 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     setLocalScreen(null);
     setSharing(false);
     setShareAudioOn(false);
+    setPcAudio(null);
     if (roomRef.current) update({ sharing: false });
   }, [update]);
 
@@ -580,8 +583,14 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
         // Resolução e fps escolhidos pela pessoa (padrão 1080p30).
         video: captureConstraints(qualityRef.current),
         // Sem processamento de voz: o áudio da tela é música/vídeo, não fala.
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        // Só o som do que foi compartilhado (aba/janela), nunca o áudio geral do computador.
+        // restrictOwnAudio: no som do PC, tira o que esta página toca (as vozes da call).
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          restrictOwnAudio: true,
+        } as MediaTrackConstraints,
+        // Dica para o seletor; o Chrome ainda oferece o som do PC ao escolher uma janela.
         systemAudio: "exclude",
         selfBrowserSurface: "include",
       } as DisplayMediaStreamOptions);
@@ -600,6 +609,11 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
       if (video) video.contentHint = "motion";
       if (audio) audio.contentHint = "music";
       setShareAudioOn(!!audio);
+      // Janela/tela: o navegador só consegue o som do PC inteiro, e o Windows mistura nele o
+      // Discord e qualquer outro programa. Começa desligado; quem transmite liga se quiser.
+      const wholePc = !!audio && video?.getSettings().displaySurface !== "browser";
+      if (audio && wholePc) audio.enabled = false;
+      setPcAudio(wholePc ? "off" : null);
       for (const [id, p] of peersRef.current) {
         await p.videoSender?.replaceTrack(video);
         await p.screenAudioSender?.replaceTrack(audio);
@@ -660,6 +674,13 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     }, 2000);
     return () => clearInterval(timer);
   }, [sharing]);
+
+  const togglePcAudio = useCallback(() => {
+    const audio = screenStreamRef.current?.getAudioTracks()[0];
+    if (!audio) return;
+    audio.enabled = !audio.enabled;
+    setPcAudio(audio.enabled ? "on" : "off");
+  }, []);
 
   const toggleShare = useCallback(() => {
     if (screenStreamRef.current) stopShare();
@@ -1072,6 +1093,8 @@ export function useCall({ me, members, reconnecting, update, notify }: Args) {
     localScreen,
     shareAudioOn,
     shareStats,
+    pcAudio,
+    togglePcAudio,
     localCam,
     speaking,
     micId,
